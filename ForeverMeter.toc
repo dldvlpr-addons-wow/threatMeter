@@ -1,7 +1,6 @@
 ## Interface: 16001, 11509, 11600, 20506, 30405, 40402, 50504, 120100
 ## Title: ForeverMeter
 ## Notes: Dégâts, soins, dégâts subis et menace. Segments par combat, détail par sort, rapport en chat. /fm
-## Author: ludov
 ## Version: 1.0.0
 ## SavedVariables: ForeverMeterDB
 ## Category: Combat
