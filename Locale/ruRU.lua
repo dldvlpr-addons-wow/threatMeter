@@ -1,7 +1,7 @@
 -- Locale/ruRU.lua
-if GetLocale() ~= "ruRU" then return end
 local _, NS = ...
-local L = NS.L
+local L = {}
+NS.Locales.ruRU = L
 L.MODE_DAMAGE = "Урон"
 L.MODE_HEAL = "Исцеление"
 L.MODE_ABSORBS = "Поглощение"
@@ -35,9 +35,11 @@ L.MSG_WARN = "предупреждение об угрозе при %d%%"
 L.MSG_SOUND = "звук %s"
 L.MSG_PETS = "питомцы в режиме угрозы %s"
 L.MSG_DEFAULTS = "настройки сброшены"
+L.MSG_LANG = "язык: %s"
+L.MSG_LANG_LIST = "языки: %s (auto = язык клиента)"
 L.WORD_ON = "вкл"
 L.WORD_OFF = "выкл"
 L.WORD_SHOWN = "показаны"
 L.WORD_HIDDEN = "скрыты"
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | lang | defaults"
 L.HELP_2 = "Кнопка Меню или ПКМ по заголовку: выбор режима и сессии. Кнопка Сброс: очистить. Клик по полосе = детали по заклинаниям. Колесо мыши = прокрутка."

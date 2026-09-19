@@ -1,7 +1,7 @@
 -- Locale/zhTW.lua
-if GetLocale() ~= "zhTW" then return end
 local _, NS = ...
-local L = NS.L
+local L = {}
+NS.Locales.zhTW = L
 L.MODE_DAMAGE = "傷害"
 L.MODE_HEAL = "治療"
 L.MODE_ABSORBS = "吸收"
@@ -35,9 +35,11 @@ L.MSG_WARN = "威脅警報閾值 %d%%"
 L.MSG_SOUND = "聲音 %s"
 L.MSG_PETS = "威脅視圖中的寵物 %s"
 L.MSG_DEFAULTS = "設定已重置"
+L.MSG_LANG = "語言：%s"
+L.MSG_LANG_LIST = "可用語言：%s（auto = 遊戲用戶端語言）"
 L.WORD_ON = "開"
 L.WORD_OFF = "關"
 L.WORD_SHOWN = "顯示"
 L.WORD_HIDDEN = "隱藏"
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | lang | defaults"
 L.HELP_2 = "選單 按鈕或右鍵標題：選擇模式和會話。重置按鈕：清空。點擊條目 = 按法術查看詳情。滾輪 = 捲動。"

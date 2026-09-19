@@ -11,7 +11,11 @@
 --   2. Partie WoW : lecture C_DamageMeter, menace, fenêtres, commandes.
 
 local ADDON, NS = ...
-local L = NS and NS.L or {}
+NS = NS or {}
+local LOCALES = NS.Locales or {}
+-- Table unique, remplie sur place par FM.ApplyLocale : les références `L` restent valides après un changement.
+local L = {}
+NS.L = L
 local FM = {}
 _G.ForeverMeter = FM
 
@@ -29,6 +33,41 @@ FM.MODE_INFO = {
 }
 FM.SESSION_OVERALL, FM.SESSION_CURRENT = 0, 1
 
+local LABEL_KEYS = {
+	damage = "MODE_DAMAGE", heal = "MODE_HEAL", absorbs = "MODE_ABSORBS", taken = "MODE_TAKEN",
+	interrupts = "MODE_INTERRUPTS", dispels = "MODE_DISPELS", deaths = "MODE_DEATHS", threat = "MODE_THREAT",
+}
+
+-- Langues chargées, triées : enUS, frFR, deDE...
+function FM.AvailableLocales()
+	local list = {}
+	for code in pairs(LOCALES) do list[#list + 1] = code end
+	table.sort(list)
+	return list
+end
+
+-- Code de langue saisi (casse libre) -> code chargé, ou nil.
+function FM.FindLocale(input)
+	input = (input or ""):lower()
+	for code in pairs(LOCALES) do
+		if code:lower() == input then return code end
+	end
+	return nil
+end
+
+-- Remplit L : anglais, puis la langue demandée par-dessus (clés manquantes = anglais).
+-- Renvoie le code réellement appliqué.
+function FM.ApplyLocale(code)
+	if not LOCALES[code] then code = "enUS" end
+	for k in pairs(L) do L[k] = nil end
+	for k, v in pairs(LOCALES.enUS or {}) do L[k] = v end
+	for k, v in pairs(LOCALES[code] or {}) do L[k] = v end
+	for mode, key in pairs(LABEL_KEYS) do FM.MODE_INFO[mode].label = L[key] end
+	return code
+end
+
+FM.ApplyLocale(GetLocale and GetLocale() or "enUS")
+
 local DEFAULTS = {
 	locked = false,
 	scale = 1,
@@ -39,6 +78,7 @@ local DEFAULTS = {
 	warnPct = 90,
 	warnSound = true,
 	showPets = true,
+	locale = nil,                         -- nil = langue du client (GetLocale)
 	point = { "CENTER", nil, "CENTER", 300, 0 },
 }
 
@@ -50,6 +90,8 @@ function FM.FormatValue(v)
 	v = v or 0
 	if v >= 1000000 then return string.format("%.2fM", v / 1000000) end
 	if v >= 1000 then return string.format("%.1fk", v / 1000) end
+	-- Une décimale sous 10 : à bas niveau, un débit de 0.8/s ne doit pas s'afficher 0.
+	if v < 10 and v ~= math.floor(v) then return string.format("%.1f", v) end
 	return tostring(math.floor(v))
 end
 
@@ -62,7 +104,8 @@ end
 -- string.format reste permis et le résultat s'affiche tel quel.
 function FM.FormatRow(total, perSecond, sessionTotal, secret)
 	if secret then
-		return string.format("%d (%d/s)", total, perSecond)
+		-- Pas de test possible sur une valeur secrète : une décimale toujours, sinon %d tronque 0.8 en 0.
+		return string.format("%d (%.1f/s)", total, perSecond)
 	end
 	local pct = sessionTotal and sessionTotal > 0 and (total / sessionTotal * 100) or 0
 	return string.format("%s (%s/s, %.1f%%)", FM.FormatValue(total), FM.FormatValue(perSecond), pct)
@@ -118,6 +161,7 @@ local function Register(frame, event)
 end
 
 local UnitGUID, UnitName, UnitClass, UnitExists = UnitGUID, UnitName, UnitClass, UnitExists
+local UnitAffectingCombat = UnitAffectingCombat
 local UnitCanAttack, UnitIsDead, UnitIsUnit = UnitCanAttack, UnitIsDead, UnitIsUnit
 local UnitDetailedThreatSituation = UnitDetailedThreatSituation
 local IsInRaid, IsInGroup, GetNumGroupMembers = IsInRaid, IsInGroup, GetNumGroupMembers
@@ -584,6 +628,14 @@ main.menuButton:SetPoint("RIGHT", main.resetButton, "LEFT", -2, 0)
 main.menuButton:SetScript("OnClick", function(self) OpenMenu(self) end)
 main.title:SetPoint("RIGHT", main.menuButton, "LEFT", -4, 0)
 
+-- Applique la langue choisie (db.locale, sinon celle du client) et met à jour les textes déjà posés.
+local function ApplyLanguage()
+	local code = FM.ApplyLocale(db.locale or GetLocale())
+	main.resetButton:SetText(L.BTN_RESET)
+	main.menuButton:SetText(L.BTN_MENU)
+	return code
+end
+
 -- Titre : clic gauche = mode suivant, clic droit = menu.
 main.header:SetScript("OnClick", function(self, button)
 	if button == "RightButton" then OpenMenu(self) else CycleMode(1); Refresh() end
@@ -637,7 +689,9 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		db = ForeverMeterDB
 		for k, v in pairs(DEFAULTS) do if db[k] == nil then db[k] = v end end
 		if not FM.MODE_INFO[db.mode] then db.mode = "damage" end
+		if db.locale and not FM.FindLocale(db.locale) then db.locale = nil end
 		db.forbidden = forbiddenLog
+		ApplyLanguage()
 		Layout()
 		Refresh()
 	elseif not db then
@@ -681,6 +735,41 @@ local function Report(count)
 	end
 end
 
+-- Diagnostic (/fm debug) : valeurs brutes de C_DamageMeter pour le mode et la session affichés.
+-- Texte technique, volontairement non traduit. %.3f garde les décimales ; string.format accepte les valeurs secrètes.
+local function Raw(v)
+	if v == nil then return "nil" end
+	if type(v) ~= "number" then return tostring(v) end
+	return string.format("%.3f", v) .. (issecretvalue(v) and " (secret)" or "")
+end
+
+local function Keys(t)
+	local list = {}
+	for k in pairs(t or {}) do list[#list + 1] = tostring(k) end
+	table.sort(list)
+	return table.concat(list, ", ")
+end
+
+local function Debug()
+	local session = ReadSession()
+	Print(string.format("debug : mode=%s type=%s vue=%s combat=%s", db.mode, tostring(FM.MODE_INFO[db.mode].type),
+		tostring(view), tostring(UnitAffectingCombat("player") and true or false)))
+	if not session then Print("debug : session nil"); return end
+	Print("debug : session.durationSeconds=" .. Raw(session.durationSeconds) .. " totalAmount=" .. Raw(session.totalAmount))
+	if DamageMeter.GetSessionDurationSeconds and (view == "overall" or view == "current") then
+		Print("debug : GetSessionDurationSeconds=" .. Raw(DamageMeter.GetSessionDurationSeconds(view == "overall" and FM.SESSION_OVERALL or FM.SESSION_CURRENT)))
+	end
+	Print("debug : champs session = " .. Keys(session))
+	for _, src in ipairs(session.combatSources or {}) do
+		if src.isLocalPlayer then
+			Print("debug : joueur totalAmount=" .. Raw(src.totalAmount) .. " amountPerSecond=" .. Raw(src.amountPerSecond))
+			Print("debug : champs source = " .. Keys(src))
+			return
+		end
+	end
+	Print("debug : joueur absent de la session")
+end
+
 SLASH_FOREVERMETER1 = "/fm"
 SLASH_FOREVERMETER2 = "/forevermeter"
 SlashCmdList.FOREVERMETER = function(input)
@@ -695,18 +784,38 @@ SlashCmdList.FOREVERMETER = function(input)
 	elseif cmd == "width" and num then db.width = math.max(150, math.min(600, math.floor(num)))
 	elseif cmd == "mode" and FM.MODE_INFO[arg] then db.mode = arg; scrollOffset = 0
 	elseif cmd == "report" then Report(num or 5); return
+	elseif cmd == "debug" then
+		local ok, err = pcall(Debug)
+		if not ok then Print("debug : erreur " .. tostring(err)) end
+		return
 	elseif cmd == "reset" then
 		ResetData()
 		Print(L.MSG_RESET)
 	elseif cmd == "warn" and num then db.warnPct = math.max(1, math.min(130, math.floor(num))); Print(string.format(L.MSG_WARN, db.warnPct))
 	elseif cmd == "sound" then db.warnSound = not db.warnSound; Print(string.format(L.MSG_SOUND, db.warnSound and L.WORD_ON or L.WORD_OFF))
 	elseif cmd == "pets" then db.showPets = not db.showPets; Print(string.format(L.MSG_PETS, db.showPets and L.WORD_SHOWN or L.WORD_HIDDEN))
+	elseif cmd == "lang" then
+		if arg == "" then
+			Print(string.format(L.MSG_LANG, db.locale or ("auto (" .. GetLocale() .. ")")))
+			Print(string.format(L.MSG_LANG_LIST, table.concat(FM.AvailableLocales(), ", ")))
+			return
+		end
+		local code = FM.FindLocale(arg)
+		if arg:lower() ~= "auto" and not code then
+			Print(string.format(L.MSG_LANG_LIST, table.concat(FM.AvailableLocales(), ", ")))
+			return
+		end
+		db.locale = code
+		local applied = ApplyLanguage()
+		Print(string.format(L.MSG_LANG, db.locale or ("auto (" .. applied .. ")")))
 	elseif cmd == "defaults" then
 		wipe(db)
 		for k, v in pairs(DEFAULTS) do db[k] = v end
+		ApplyLanguage()
 		Print(L.MSG_DEFAULTS)
 	else
-		Print(string.format(L.HELP_1, table.concat(FM.MODES, "|")))
+		-- Pas de "|" entre les modes : le chat lit "|h", "|a", "|t"... comme des codes d'échappement.
+		Print(string.format(L.HELP_1, table.concat(FM.MODES, ", ")))
 		Print(L.HELP_2)
 		return
 	end

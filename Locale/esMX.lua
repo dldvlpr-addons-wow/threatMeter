@@ -1,7 +1,7 @@
 -- Locale/esMX.lua
-if GetLocale() ~= "esMX" then return end
 local _, NS = ...
-local L = NS.L
+local L = {}
+NS.Locales.esMX = L
 L.MODE_DAMAGE = "Daño"
 L.MODE_HEAL = "Sanación"
 L.MODE_ABSORBS = "Absorciones"
@@ -35,9 +35,11 @@ L.MSG_WARN = "aviso de amenaza al %d%%"
 L.MSG_SOUND = "sonido %s"
 L.MSG_PETS = "mascotas en la vista de amenaza %s"
 L.MSG_DEFAULTS = "ajustes restablecidos"
+L.MSG_LANG = "idioma: %s"
+L.MSG_LANG_LIST = "idiomas: %s (auto = idioma del cliente)"
 L.WORD_ON = "activado"
 L.WORD_OFF = "desactivado"
 L.WORD_SHOWN = "mostradas"
 L.WORD_HIDDEN = "ocultas"
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | lang | defaults"
 L.HELP_2 = "Botón Menú o clic derecho en el título: elegir modo y sesión. Botón Reset: reiniciar. Clic en una barra = detalle por hechizo. Rueda del ratón = desplazar."

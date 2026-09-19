@@ -1,7 +1,9 @@
 -- Locale/enUS.lua : base de repli, toujours chargée.
--- Les autres fichiers de Locale/ surchargent ces clés quand GetLocale() correspond.
+-- Chaque fichier de Locale/ enregistre sa table dans NS.Locales ; ForeverMeter.lua applique l'anglais
+-- puis la langue choisie (/fm lang, sinon GetLocale()).
 local _, NS = ...
-NS.L = {
+NS.Locales = {}
+NS.Locales.enUS = {
     MODE_DAMAGE = "Damage",
     MODE_HEAL = "Healing",
     MODE_ABSORBS = "Absorbs",
@@ -35,10 +37,12 @@ NS.L = {
     MSG_SOUND = "sound %s",
     MSG_PETS = "pets in threat view %s",
     MSG_DEFAULTS = "settings reset to defaults",
+    MSG_LANG = "language: %s",
+    MSG_LANG_LIST = "languages: %s (auto = game client language)",
     WORD_ON = "on",
     WORD_OFF = "off",
     WORD_SHOWN = "shown",
     WORD_HIDDEN = "hidden",
-    HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults",
+    HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | lang | defaults",
     HELP_2 = "Menu button or right-click the title: choose mode and session. Reset button: clear. Click a bar = per-spell details. Mouse wheel = scroll.",
 }

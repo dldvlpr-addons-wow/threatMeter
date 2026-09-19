@@ -22,12 +22,15 @@ Copier le dossier dans `World of Warcraft/_classic_beta_/Interface/AddOns/Foreve
 - Menace : alerte visuelle et sonore au-dessus d'un seuil réglable (`/fm warn 90`).
 - Rapport en chat (`/fm report 5`) : raid, groupe ou say selon le contexte.
 - 11 langues (`Locale/`) : enUS, frFR, deDE, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW.
+  Par défaut, celle du client ; `/fm lang frFR` en impose une, `/fm lang auto` revient à celle du client.
 
 ## Commandes
 ```
 /fm mode <damage|heal|absorbs|taken|interrupts|dispels|deaths|threat>
 /fm report [N] | reset | lock | unlock | toggle
 /fm scale <x> | rows <n> | width <px> | warn <%> | sound | pets | defaults
+/fm lang [auto|enUS|frFR|deDE|esES|esMX|itIT|ptBR|ruRU|koKR|zhCN|zhTW]
+/fm debug   (valeurs brutes de C_DamageMeter, pour diagnostiquer un affichage)
 ```
 
 ## Vérification hors jeu

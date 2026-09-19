@@ -1,7 +1,7 @@
 -- Locale/frFR.lua
-if GetLocale() ~= "frFR" then return end
 local _, NS = ...
-local L = NS.L
+local L = {}
+NS.Locales.frFR = L
 L.MODE_DAMAGE = "Dégâts"
 L.MODE_HEAL = "Soins"
 L.MODE_ABSORBS = "Absorptions"
@@ -35,9 +35,11 @@ L.MSG_WARN = "alerte menace à %d%%"
 L.MSG_SOUND = "son %s"
 L.MSG_PETS = "familiers en menace %s"
 L.MSG_DEFAULTS = "réglages remis à zéro"
+L.MSG_LANG = "langue : %s"
+L.MSG_LANG_LIST = "langues : %s (auto = langue du client)"
 L.WORD_ON = "activé"
 L.WORD_OFF = "désactivé"
 L.WORD_SHOWN = "affichés"
 L.WORD_HIDDEN = "masqués"
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | lang | defaults"
 L.HELP_2 = "Bouton Menu ou clic droit sur le titre : choix du mode et de la session. Bouton Reset : remise à zéro. Clic sur une barre = détail par sort. Molette = défiler."

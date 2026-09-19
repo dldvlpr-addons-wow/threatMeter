@@ -1,7 +1,7 @@
 -- Locale/ptBR.lua
-if GetLocale() ~= "ptBR" then return end
 local _, NS = ...
-local L = NS.L
+local L = {}
+NS.Locales.ptBR = L
 L.MODE_DAMAGE = "Dano"
 L.MODE_HEAL = "Cura"
 L.MODE_ABSORBS = "Absorções"
@@ -35,9 +35,11 @@ L.MSG_WARN = "aviso de ameaça em %d%%"
 L.MSG_SOUND = "som %s"
 L.MSG_PETS = "ajudantes na visão de ameaça %s"
 L.MSG_DEFAULTS = "configurações redefinidas"
+L.MSG_LANG = "idioma: %s"
+L.MSG_LANG_LIST = "idiomas: %s (auto = idioma do cliente)"
 L.WORD_ON = "ativado"
 L.WORD_OFF = "desativado"
 L.WORD_SHOWN = "exibidos"
 L.WORD_HIDDEN = "ocultos"
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | lang | defaults"
 L.HELP_2 = "Botão Menu ou clique direito no título: escolher modo e sessão. Botão Reset: redefinir. Clique numa barra = detalhe por feitiço. Roda do mouse = rolar."

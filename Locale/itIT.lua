@@ -1,7 +1,7 @@
 -- Locale/itIT.lua
-if GetLocale() ~= "itIT" then return end
 local _, NS = ...
-local L = NS.L
+local L = {}
+NS.Locales.itIT = L
 L.MODE_DAMAGE = "Danni"
 L.MODE_HEAL = "Cure"
 L.MODE_ABSORBS = "Assorbimenti"
@@ -35,9 +35,11 @@ L.MSG_WARN = "avviso minaccia al %d%%"
 L.MSG_SOUND = "suono %s"
 L.MSG_PETS = "famigli nella vista minaccia %s"
 L.MSG_DEFAULTS = "impostazioni ripristinate"
+L.MSG_LANG = "lingua: %s"
+L.MSG_LANG_LIST = "lingue: %s (auto = lingua del client)"
 L.WORD_ON = "attivo"
 L.WORD_OFF = "disattivo"
 L.WORD_SHOWN = "mostrati"
 L.WORD_HIDDEN = "nascosti"
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | lang | defaults"
 L.HELP_2 = "Pulsante Menu o clic destro sul titolo: scegli modalità e sessione. Pulsante Reset: azzera. Clic su una barra = dettaglio per incantesimo. Rotellina = scorri."

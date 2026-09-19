@@ -1,7 +1,7 @@
 -- Locale/deDE.lua
-if GetLocale() ~= "deDE" then return end
 local _, NS = ...
-local L = NS.L
+local L = {}
+NS.Locales.deDE = L
 L.MODE_DAMAGE = "Schaden"
 L.MODE_HEAL = "Heilung"
 L.MODE_ABSORBS = "Absorption"
@@ -35,9 +35,11 @@ L.MSG_WARN = "Bedrohungswarnung bei %d%%"
 L.MSG_SOUND = "Ton %s"
 L.MSG_PETS = "Begleiter in der Bedrohungsansicht %s"
 L.MSG_DEFAULTS = "Einstellungen zurückgesetzt"
+L.MSG_LANG = "Sprache: %s"
+L.MSG_LANG_LIST = "Sprachen: %s (auto = Sprache des Spielclients)"
 L.WORD_ON = "an"
 L.WORD_OFF = "aus"
 L.WORD_SHOWN = "angezeigt"
 L.WORD_HIDDEN = "ausgeblendet"
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | lang | defaults"
 L.HELP_2 = "Menü oder Rechtsklick auf den Titel: Modus und Sitzung wählen. Reset: zurücksetzen. Klick auf einen Balken = Details pro Zauber. Mausrad = scrollen."
