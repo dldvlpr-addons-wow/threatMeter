@@ -43,8 +43,8 @@ NS.Locales.enUS = {
     WORD_OFF = "off",
     WORD_SHOWN = "shown",
     WORD_HIDDEN = "hidden",
-    HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | warn %% | sound | pets | lang | defaults",
-    HELP_2 = "Menu button or right-click the title: choose mode and session. Reset button: clear. Click a bar = per-spell details. Mouse wheel = scroll.",
+    HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults",
+    HELP_2 = "Menu button or right-click the title: choose mode and session. Reset button: clear. Click a bar = per-spell details. Mouse wheel = scroll. Bottom-right grip = resize.",
     MENU_WINDOWS = "Windows",
     MENU_LOCK = "Lock position",
     MENU_NEW_WINDOW = "New window",
@@ -52,4 +52,5 @@ NS.Locales.enUS = {
     TIP_NO_RECAP = "no death recap available",
     TIP_CLICK = "Click: per-spell details",
     MSG_WINDOWS = "%d window(s)",
+    MSG_REFRESH = "refresh every %.2f s",
 }

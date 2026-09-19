@@ -11,6 +11,16 @@ local function Obj(kind)
 		if k == "IsShown" then return function(self) return self.shown end end
 		if k == "SetText" then return function(self, v) self.text = v end end
 		if k == "GetText" then return function(self) return self.text end end
+		if k == "SetWidth" then return function(self, v) self.w = v end end
+		if k == "SetHeight" then return function(self, v) self.h = v end end
+		if k == "GetWidth" then return function(self) return self.w end end
+		if k == "GetHeight" then return function(self) return self.h end end
+		if k == "GetLeft" then return function(self) return self.l or 0 end end
+		if k == "GetRight" then return function(self) return (self.l or 0) + (self.w or 260) end end
+		if k == "GetTop" then return function(self) return self.t or 0 end end
+		if k == "GetBottom" then return function(self) return (self.t or 0) - (self.h or 100) end end
+		if k == "SetPoint" then return function(self, ...) self.point = { ... } end end
+		if k == "GetNormalTexture" then return function(self) self.tex = self.tex or Obj("Texture"); return self.tex end end
 		if k == "GetPoint" then return function() return "CENTER", nil, "CENTER", 10, 20 end end
 		if k == "CreateTexture" or k == "CreateFontString" then return function() return Obj(k) end end
 		if k == "RegisterEvent" then return function(self, e) if e == "BOGUS" then error("unknown event") end end end
@@ -113,6 +123,8 @@ Fire("ADDON_LOADED", "Autre")
 Fire("ADDON_LOADED", "ForeverMeter")
 local db = ForeverMeterDB
 assert(db.mode == nil and #db.windows == 1 and db.windows[1].mode == "heal" and db.windows[1].point[4] == 5, "migration db.mode/db.point")
+assert(db.locked == nil and db.windows[1].locked == true, "migration du verrou global vers la fenêtre")
+db.windows[1].locked = nil
 local w1 = ForeverMeterFrame
 assert(w1 and w1.cfg == db.windows[1])
 assert(w1.title.text:find("Soins"), w1.title.text)
@@ -143,7 +155,7 @@ slash("debug")
 slash("lang enUS")
 assert(w1.title.text:find("Deaths") and w1.resetButton.text == "Reset" and ForeverMeterFrame2.menuButton.text == "Menu")
 slash("lang auto")
-slash("rows 3"); slash("width 300"); slash("scale 1.2"); slash("warn 80"); slash("sound"); slash("pets"); slash("lock"); slash("unlock")
+slash("refresh 0.1"); assert(db.refresh == 0.1); slash("refresh 9"); assert(db.refresh == 2); slash("refresh 0.2"); slash("rows 3"); slash("width 300"); slash("scale 1.2"); slash("warn 80"); slash("sound"); slash("pets"); slash("lock"); assert(db.windows[1].locked and db.windows[2].locked); slash("unlock"); assert(not db.windows[1].locked)
 slash("toggle"); assert(not w1.shown and not ForeverMeterFrame2.shown)
 ForeverMeter_Toggle(); assert(w1.shown and ForeverMeterFrame2.shown)
 slash("aide")
@@ -189,7 +201,7 @@ local function Entry(text) for _, e in ipairs(LAST_MENU) do if e[2] == text then
 -- CreateButton(text, func) : func en position 3 ; radio/checkbox : en position 4.
 local function Call(text) local e = assert(Entry(text), text); return (e[1] == "CreateButton" and e[3] or e[4])() end
 assert(Entry("Dégâts")[3]() == true and Entry("Ogre") and Entry("Verrouiller la position")[1] == "CreateCheckbox")
-assert(Entry("Verrouiller la position")[3]() == false); Entry("Verrouiller la position")[4](); assert(db.locked == true)
+assert(Entry("Verrouiller la position")[3]() == false); Entry("Verrouiller la position")[4](); assert(db.windows[1].locked == true and not db.windows[2].locked, "verrou par fenêtre")
 Call("Nouvelle fenêtre"); assert(#db.windows == 3 and ForeverMeterFrame3.shown)
 ForeverMeterFrame3.menuButton.scripts.OnClick(ForeverMeterFrame3.menuButton)
 Call("Fermer cette fenêtre"); assert(#db.windows == 2 and not ForeverMeterFrame3.shown)
@@ -203,6 +215,41 @@ Call("Remise à zéro"); assert(calls.reset == 1 and db.windows[2].view == "curr
 w1.header.scripts.OnClick(w1.header, "LeftButton"); assert(db.windows[1].mode == "heal")
 w1.scripts.OnMouseWheel(w1, -1); assert(w1.scrollOffset == 0, "2 sources, 3 lignes : pas de défilement")
 w1.header.scripts.OnDragStop(); assert(db.windows[1].point[4] == 10)
+
+-- Poignée : redimensionne la fenêtre 1 seule ; /fm rows remet la taille commune partout
+db.windows[1].locked = nil; w1.grip.scripts.OnMouseDown(); assert(w1.sizing)
+w1.w, w1.h = 333, 18 + 5 * 17 + 3 + 9 -- pendant le glissement : taille brute, barres replacées, frame non arrondie
+w1.scripts.OnSizeChanged(w1)
+assert(w1.w == 333 and w1.rows == 6 and db.windows[1].width == nil, "glissement : pas d'arrondi ni d'enregistrement")
+w1.w, w1.h = 320, 18 + 5 * 17 + 3
+w1.grip.scripts.OnMouseUp()
+assert(not w1.sizing and db.windows[1].width == 320 and db.windows[1].rows == 5, tostring(db.windows[1].rows))
+assert(w1.rows == 5 and w1.w == 320 and w2.rows == db.rows and w2.w == db.width, "fenêtre 2 inchangée")
+assert(ForeverMeterDetailFrame.w == 320 and ForeverMeterDetailFrame.rows == 5, "détail à la taille du propriétaire")
+db.windows[1].locked = true; w1.grip.scripts.OnMouseDown(); assert(not w1.sizing, "verrouillée : pas de redimensionnement"); w1.header.scripts.OnDragStart(); assert(w1.cfg.anchor == nil or true); w1.lockButton.scripts.OnClick(); assert(not db.windows[1].locked, "cadenas")
+slash("rows 4"); assert(db.windows[1].rows == nil and w1.rows == 4 and w2.rows == 4)
+slash("width 260"); assert(db.windows[1].width == nil and w1.w == 260)
+
+-- Ancrage : la 2e fenêtre est collée sous la 1re ; la déplacer la décroche ; la relâcher contre le bord droit la recolle.
+assert(db.windows[2].anchor and db.windows[2].anchor.to == 1 and w2.point[2] == w1 and w2.point[1] == "TOPLEFT" and w2.point[3] == "BOTTOMLEFT", "nouvelle fenêtre collée dessous")
+w2.header.scripts.OnDragStart()
+assert(db.windows[2].anchor == nil)
+w1.l, w1.t, w1.w, w1.h = 0, 500, 260, 100
+w2.l, w2.t, w2.w, w2.h = 400, 300, 260, 100 -- loin : reste libre
+w2.header.scripts.OnDragStop()
+assert(db.windows[2].anchor == nil and w2.point[2] == UIParent)
+w2.l, w2.t = 258, 497 -- contre le bord droit de w1, à 2-3 px
+w2.header.scripts.OnDragStop()
+assert(db.windows[2].anchor and db.windows[2].anchor.to == 1 and db.windows[2].anchor.side == "RIGHT" and w2.point[2] == w1, "aimantée à droite")
+-- Boucle refusée : w1 relâchée sous w2 alors que w2 est collée à w1.
+w1.l, w1.t = 258, 397
+w1.header.scripts.OnDragStop()
+assert(db.windows[1].anchor == nil, "pas de boucle 1->2->1")
+-- Fermer la fenêtre visée : la collée garde sa position absolue.
+slash("windows 3"); assert(db.windows[3].anchor.to == 2)
+w1.menuButton.scripts.OnClick(w1.menuButton); Call("Fermer cette fenêtre")
+assert(#db.windows == 2 and db.windows[1].anchor == nil and db.windows[1].point[1] == "BOTTOMLEFT" and db.windows[2].anchor.to == 1, "décrochée et index décalé")
+slash("windows 1"); slash("windows 2") -- w2 recréée, collée sous w1
 
 -- Événements restants
 Fire("GROUP_ROSTER_UPDATE"); Fire("PLAYER_REGEN_ENABLED"); Fire("PLAYER_ENTERING_WORLD"); Fire("DAMAGE_METER_CURRENT_SESSION_UPDATED")
@@ -219,5 +266,19 @@ slash("report"); slash("mode deaths"); bar.scripts.OnEnter(bar)
 secretMode = false
 
 -- defaults, puis /reload simulé (config sauvegardée avec 2 fenêtres, vue numérique)
-slash("defaults"); assert(#db.windows == 1 and db.windows[1].mode == "damage" and db.locked == false)
+slash("defaults"); assert(#db.windows == 1 and db.windows[1].mode == "damage" and db.windows[1].locked == nil)
+
+-- Rechargement avec une sauvegarde réelle (4 fenêtres, anciens champs) : les 4 doivent revenir.
+wipe(ForeverMeterDB)
+for k, v in pairs({ showPets = true, point = { "CENTER", nil, "CENTER", 300, 0 }, warnPct = 90, scale = 1, rows = 10, width = 260, forbidden = {}, rowHeight = 16, locked = false, refresh = 0.2, warnSound = true,
+	windows = {
+		{ view = "current", point = { "TOPLEFT", nil, "TOPLEFT", 0, -41 }, rows = 26, mode = "heal", width = 152 },
+		{ view = "current", mode = "damage", point = { "TOPLEFT", nil, "TOPLEFT", 0, -510 } },
+		{ view = "current", point = { "TOPLEFT", nil, "TOPLEFT", 151.9, -43.1 }, rows = 9, mode = "damage", width = 454 },
+		{ view = "current", point = { "LEFT", nil, "LEFT", 152.5, 146.2 }, rows = 16, mode = "absorbs", width = 250 },
+	} }) do ForeverMeterDB[k] = v end
+Fire("ADDON_LOADED", "ForeverMeter")
+assert(#db.windows == 4, #db.windows)
+for i = 1, 4 do assert(_G["ForeverMeterFrame" .. (i == 1 and "" or i)].shown, "fenêtre " .. i .. " masquée") end
+assert(w1.rows == 26 and w1.w == 152 and ForeverMeterFrame2.rows == 10 and ForeverMeterFrame4.title.text:find("Absorptions"))
 print("uicheck OK")

@@ -71,12 +71,12 @@ end
 FM.ApplyLocale(GetLocale and GetLocale() or "enUS")
 
 local DEFAULTS = {
-	locked = false,
 	scale = 1,
 	rows = 10,
 	width = 260,
 	rowHeight = 16,
 	warnPct = 90,
+	refresh = 0.2,                        -- secondes entre deux rafraîchissements (les événements C_DamageMeter rafraîchissent aussi)
 	warnSound = true,
 	showPets = true,
 	locale = nil,                         -- nil = langue du client (GetLocale)
@@ -149,7 +149,8 @@ function FM.RecapLines(events, spellName, maxLines)
 	return lines
 end
 
--- Configuration d'une nouvelle fenêtre : mode opposé à celui de la première, posée sous la précédente.
+-- Configuration d'une nouvelle fenêtre : mode opposé à celui de la première, collée sous la précédente
+-- (anchor = { to = index, side }). `point` sert de repli si la fenêtre est décrochée.
 function FM.NewWindowConfig(list, windowHeight)
 	local prev = list[#list]
 	if not prev then return { mode = "damage", view = "current", point = DEFAULTS.point } end
@@ -158,7 +159,46 @@ function FM.NewWindowConfig(list, windowHeight)
 		mode = list[1].mode == "damage" and "heal" or "damage",
 		view = "current",
 		point = { p[1], nil, p[3], p[4], p[5] - windowHeight - 6 },
+		anchor = { to = #list, side = "BOTTOM" },
 	}
+end
+
+-- Aimantation : côté de `other` contre lequel `rect` a été relâché, ou nil. Rects = { left, right, top, bottom }.
+-- BOTTOM/TOP : bords gauches alignés ; RIGHT/LEFT : bords hauts alignés.
+function FM.SnapSide(rect, other, threshold)
+	local near = function(a, b) return math.abs(a - b) <= threshold end
+	if near(rect[1], other[1]) then
+		if near(rect[3], other[4]) then return "BOTTOM" end
+		if near(rect[4], other[3]) then return "TOP" end
+	end
+	if near(rect[3], other[3]) then
+		if near(rect[1], other[2]) then return "RIGHT" end
+		if near(rect[2], other[1]) then return "LEFT" end
+	end
+	return nil
+end
+
+-- L'ancrage de la fenêtre i est valide s'il vise une autre fenêtre existante et ne boucle pas sur i.
+function FM.AnchorValid(list, i)
+	local seen, k = {}, i
+	while list[k] and list[k].anchor do
+		local to = list[k].anchor.to
+		if to == i or to == k or not list[to] or seen[to] then return false end
+		seen[to] = true
+		k = to
+	end
+	return list[i] and list[i].anchor ~= nil
+end
+
+-- Retire la fenêtre k : les ancrages qui la visaient sont décrochés, les index au-dessus décalés.
+function FM.RemoveWindowConfig(list, k)
+	table.remove(list, k)
+	for _, c in ipairs(list) do
+		local a = c.anchor
+		if a then
+			if a.to == k then c.anchor = nil elseif a.to > k then a.to = a.to - 1 end
+		end
+	end
 end
 
 ------------------------------------------------------------------------
@@ -207,14 +247,19 @@ local DeathRecap = C_DeathRecap
 local db
 local windows = {}                        -- frames ; windows[i].cfg == db.windows[i] = { mode, view, point }
 local threatSamples = {}
+local warnedGuid = nil                    -- partagé : deux fenêtres en mode menace ne jouent le son qu'une fois
 
 local function Print(msg)
 	DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99ForeverMeter|r : " .. msg)
 end
 
-local function WindowHeight()
-	return 18 + db.rows * (db.rowHeight + 1) + 3
+local function WindowHeight(rows)
+	return 18 + (rows or db.rows) * (db.rowHeight + 1) + 3
 end
+
+-- Taille d'une fenêtre : la sienne (poignée de redimensionnement) sinon la taille commune (/fm rows, /fm width).
+local function Rows(win) return win.cfg.rows or db.rows end
+local function Width(win) return win.cfg.width or db.width end
 
 ------------------------------------------------------------------------
 -- Lecture de C_DamageMeter (par fenêtre : win.cfg.mode, win.cfg.view)
@@ -402,8 +447,6 @@ local function MakeWindow(name, w, h)
 	f.title:SetPoint("LEFT", 4, 0)
 	f.title:SetPoint("RIGHT", -4, 0)
 	f.title:SetJustifyH("LEFT")
-	f.header:SetScript("OnDragStart", function() if not db.locked then f:StartMoving() end end)
-	f.header:SetScript("OnDragStop", function() f:StopMovingOrSizing(); if f.OnMoved then f.OnMoved() end end)
 	f.bars = {}
 	return f
 end
@@ -434,10 +477,9 @@ local function MakeBar(parent, i)
 	return bar
 end
 
-local function LayoutWindow(f, rows, width)
-	f:SetScale(db.scale)
-	f:SetWidth(width)
-	f:SetHeight(WindowHeight())
+-- Place les barres pour `rows` lignes et `width` px sans toucher à la taille de la frame.
+local function LayoutBars(f, rows, width)
+	f.rows = rows
 	for i = 1, math.max(rows, #f.bars) do
 		local bar = f.bars[i] or MakeBar(f, i)
 		bar:SetSize(width - 6, db.rowHeight)
@@ -448,9 +490,20 @@ local function LayoutWindow(f, rows, width)
 	end
 end
 
+local function LayoutWindow(f, rows, width)
+	f:SetScale(db.scale)
+	f:SetWidth(width)
+	f:SetHeight(WindowHeight(rows))
+	LayoutBars(f, rows, width)
+end
+
 -- Fenêtre de détail par sort, unique, ancrée à la fenêtre qui l'a ouverte (detail.owner).
 local detail = MakeWindow("ForeverMeterDetailFrame", DEFAULTS.width, 100)
 detail:Hide()
+-- Collée à sa fenêtre propriétaire et déplacée avec elle : pas de déplacement propre (il serait perdu au prochain ancrage).
+detail:SetMovable(false)
+detail.header:SetScript("OnDragStart", nil)
+detail.header:SetScript("OnDragStop", nil)
 detail.close = CreateFrame("Button", nil, detail.header, "UIPanelCloseButton")
 detail.close:SetPoint("RIGHT", 2, 0)
 detail.close:SetSize(20, 20)
@@ -460,19 +513,56 @@ detail.close:SetScript("OnClick", function()
 end)
 
 local function AnchorDetail()
+	local owner = detail.owner or windows[1]
+	LayoutWindow(detail, Rows(owner), Width(owner))
 	detail:ClearAllPoints()
-	detail:SetPoint("TOPLEFT", detail.owner or windows[1], "TOPRIGHT", 4, 0)
+	detail:SetPoint("TOPLEFT", owner, "TOPRIGHT", 4, 0)
 end
+
+local ANCHOR_GAP = 2
+local ANCHOR_POINTS = {
+	BOTTOM = { "TOPLEFT", "BOTTOMLEFT", 0, -ANCHOR_GAP },
+	TOP    = { "BOTTOMLEFT", "TOPLEFT", 0, ANCHOR_GAP },
+	RIGHT  = { "TOPLEFT", "TOPRIGHT", ANCHOR_GAP, 0 },
+	LEFT   = { "TOPRIGHT", "TOPLEFT", -ANCHOR_GAP, 0 },
+}
 
 local function Layout()
 	for i = 1, #db.windows do
 		local f = windows[i]
-		LayoutWindow(f, db.rows, db.width)
+		LayoutWindow(f, Rows(f), Width(f))
 		f:ClearAllPoints()
-		f:SetPoint(f.cfg.point[1], UIParent, f.cfg.point[3], f.cfg.point[4], f.cfg.point[5])
+		if f.cfg.anchor and FM.AnchorValid(db.windows, i) then
+			-- Collée à une autre fenêtre : elle suit ses déplacements et sa taille.
+			local a, p = f.cfg.anchor, ANCHOR_POINTS[f.cfg.anchor.side]
+			f:SetPoint(p[1], windows[a.to], p[2], p[3], p[4])
+		else
+			f.cfg.anchor = nil
+			f:SetPoint(f.cfg.point[1], UIParent, f.cfg.point[3], f.cfg.point[4], f.cfg.point[5])
+		end
 	end
-	LayoutWindow(detail, db.rows, db.width)
 	AnchorDetail()
+end
+
+-- Position absolue d'une fenêtre (pour la garder en place quand on la décroche).
+local function AbsolutePoint(f)
+	return { "BOTTOMLEFT", nil, "BOTTOMLEFT", f:GetLeft(), f:GetBottom() }
+end
+
+-- Relâchée près du bord d'une autre fenêtre : s'y colle.
+local function TrySnap(f)
+	local rect = { f:GetLeft(), f:GetRight(), f:GetTop(), f:GetBottom() }
+	for i = 1, #db.windows do
+		local o = windows[i]
+		if o ~= f and o:IsShown() then
+			local side = FM.SnapSide(rect, { o:GetLeft(), o:GetRight(), o:GetTop(), o:GetBottom() }, 15)
+			if side then
+				f.cfg.anchor = { to = i, side = side }
+				if FM.AnchorValid(db.windows, f.index) then return end
+				f.cfg.anchor = nil
+			end
+		end
+	end
 end
 
 local GetSpellTextureCompat = (C_Spell and C_Spell.GetSpellTexture) or GetSpellTexture
@@ -527,7 +617,7 @@ local function RenderDetail()
 	detail.title:SetText((win.selectedName or "?") .. " : " .. FM.MODE_INFO[win.cfg.mode].label)
 	local sessionTotal = source and source.totalAmount
 	local session = ReadSession(win)
-	for i = 1, db.rows do
+	for i = 1, detail.rows do
 		local bar, s = detail.bars[i], spells[i]
 		if s then
 			bar:SetMinMaxValues(0, source.maxAmount or 1)
@@ -556,9 +646,9 @@ local function RenderMeter(win)
 	local sessionTotal = session and session.totalAmount
 	local secret = list[1] and issecretvalue(list[1].totalAmount)
 	if secret then win.scrollOffset = 0 end
-	local maxOffset = math.max(0, #list - db.rows)
+	local maxOffset = math.max(0, #list - win.rows)
 	if win.scrollOffset > maxOffset then win.scrollOffset = maxOffset end
-	for i = 1, db.rows do
+	for i = 1, win.rows do
 		local bar, src = win.bars[i], list[i + win.scrollOffset]
 		if src then
 			bar:SetMinMaxValues(0, maxAmount)
@@ -599,7 +689,7 @@ local function RenderThreat(win)
 		win.title:SetText(L.MODE_THREAT .. " · " .. L.THREAT_UNAVAILABLE)
 		list = {}
 	end
-	for i = 1, db.rows do
+	for i = 1, win.rows do
 		local bar, row = win.bars[i], list[i]
 		if row then
 			bar:SetMinMaxValues(0, 100)
@@ -612,11 +702,11 @@ local function RenderThreat(win)
 			bar.glow:SetShown(warn)
 			bar.source, bar.sourceGuid = nil, nil
 			bar:Show()
-			if warn and win.warnedGuid ~= row.guid then
-				win.warnedGuid = row.guid
+			if warn and warnedGuid ~= row.guid then
+				warnedGuid = row.guid
 				if db.warnSound then PlaySound(WARN_SOUND, "Master") end
 			elseif row.isPlayer and not warn then
-				win.warnedGuid = nil
+				warnedGuid = nil
 			end
 		else
 			bar:Hide()
@@ -709,15 +799,24 @@ end
 
 local function AddWindow()
 	if #db.windows >= FM.MAX_WINDOWS then return end
-	db.windows[#db.windows + 1] = FM.NewWindowConfig(db.windows, WindowHeight())
+	db.windows[#db.windows + 1] = FM.NewWindowConfig(db.windows, WindowHeight(db.windows[#db.windows].rows))
 	EnsureWindows()
 	Layout()
 	Refresh()
 end
 
+-- Retire la fenêtre k ; celles qui y étaient collées gardent leur position à l'écran.
+local function RemoveWindow(k)
+	for i = 1, #db.windows do
+		local c = db.windows[i]
+		if c.anchor and c.anchor.to == k then c.point = AbsolutePoint(windows[i]) end
+	end
+	FM.RemoveWindowConfig(db.windows, k)
+end
+
 local function CloseWindow(win)
 	if #db.windows <= 1 then return end
-	table.remove(db.windows, win.index)
+	RemoveWindow(win.index)
 	EnsureWindows()
 	Layout()
 	Refresh()
@@ -739,7 +838,7 @@ local function MenuEntries(win)
 	end
 	entries[#entries + 1] = { divider = true }
 	entries[#entries + 1] = { title = L.MENU_WINDOWS }
-	entries[#entries + 1] = { text = L.MENU_LOCK, checkbox = true, checked = function() return db.locked end, func = function() db.locked = not db.locked end }
+	entries[#entries + 1] = { text = L.MENU_LOCK, checkbox = true, checked = function() return win.cfg.locked == true end, func = function() win.cfg.locked = not win.cfg.locked; win.UpdateLock() end }
 	if #db.windows < FM.MAX_WINDOWS then entries[#entries + 1] = { text = L.MENU_NEW_WINDOW, func = AddWindow } end
 	if #db.windows > 1 then entries[#entries + 1] = { text = L.MENU_CLOSE_WINDOW, func = function() CloseWindow(win) end } end
 	entries[#entries + 1] = { divider = true }
@@ -800,17 +899,86 @@ local function NewWindow(i)
 	f.menuButton = MakeHeaderButton(f.header, L.BTN_MENU, 44)
 	f.menuButton:SetPoint("RIGHT", f.resetButton, "LEFT", -2, 0)
 	f.menuButton:SetScript("OnClick", function(self) OpenMenu(f, self) end)
-	f.title:SetPoint("RIGHT", f.menuButton, "LEFT", -4, 0)
+	-- Cadenas : verrou de position et de taille de cette fenêtre seule.
+	f.lockButton = CreateFrame("Button", nil, f.header)
+	f.lockButton:SetSize(14, 14)
+	f.lockButton:SetPoint("RIGHT", f.menuButton, "LEFT", -2, 0)
+	f.UpdateLock = function()
+		local locked = f.cfg.locked == true
+		f.lockButton:SetNormalTexture(locked and "Interface\\Buttons\\LockButton-Locked-Up" or "Interface\\Buttons\\LockButton-Unlocked-Up")
+		f.lockButton:GetNormalTexture():SetTexCoord(0.2, 0.8, 0.2, 0.8)
+		f.lockButton:SetAlpha(locked and 1 or 0.5)
+	end
+	f.lockButton:SetScript("OnClick", function()
+		f.cfg.locked = not f.cfg.locked
+		f.UpdateLock()
+	end)
+	f.title:SetPoint("RIGHT", f.lockButton, "LEFT", -4, 0)
 	f.OnMoved = function()
 		local point, _, relPoint, x, y = f:GetPoint()
 		f.cfg.point = { point, nil, relPoint, x, y }
 	end
+	-- Déplacer une fenêtre collée la décroche ; la relâcher contre une autre la colle.
+	f.header:SetScript("OnDragStart", function()
+		if f.cfg.locked then return end
+		f.cfg.anchor = nil
+		f:StartMoving()
+	end)
+	f.header:SetScript("OnDragStop", function()
+		f:StopMovingOrSizing()
+		f.OnMoved()
+		TrySnap(f)
+		Layout()
+	end)
 	f.header:SetScript("OnClick", function(self, button)
 		if button == "RightButton" then OpenMenu(f, self) else CycleMode(f, 1); Refresh() end
 	end)
 	f:EnableMouseWheel(true)
 	f:SetScript("OnMouseWheel", function(_, delta)
 		f.scrollOffset = math.max(0, f.scrollOffset - delta)
+		Refresh()
+	end)
+	-- Poignée en bas à droite : glisser règle largeur et nombre de lignes de cette fenêtre seule.
+	f:SetResizable(true)
+	if f.SetResizeBounds then
+		f:SetResizeBounds(150, WindowHeight(1), 600, WindowHeight(40))
+	elseif f.SetMinResize then
+		f:SetMinResize(150, WindowHeight(1))
+		f:SetMaxResize(600, WindowHeight(40))
+	end
+	f.grip = CreateFrame("Button", nil, f)
+	f.grip:SetSize(12, 12)
+	f.grip:SetPoint("BOTTOMRIGHT", -1, 1)
+	f.grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+	f.grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+	f.grip:SetScript("OnMouseDown", function()
+		if f.cfg.locked then return end
+		f.sizing = true
+		f:StartSizing("BOTTOMRIGHT")
+	end)
+	f.grip:SetScript("OnMouseUp", function()
+		if not f.sizing then return end
+		f.sizing = nil
+		f:StopMovingOrSizing()
+		f.OnMoved()
+		f.OnResized()
+	end)
+	-- Taille lue sur la frame -> largeur et lignes de cette fenêtre.
+	local function SizeToConfig()
+		return math.max(150, math.min(600, math.floor(f:GetWidth() + 0.5))),
+			math.max(1, math.min(40, math.floor((f:GetHeight() - 21) / (db.rowHeight + 1) + 0.5)))
+	end
+	-- Relâchement : la taille est arrondie à un nombre entier de lignes et enregistrée.
+	f.OnResized = function()
+		f.cfg.width, f.cfg.rows = SizeToConfig()
+		Layout()
+		Refresh()
+	end
+	-- Pendant le glissement, la frame suit la souris (StartSizing) : on ne fait que replacer les barres dedans.
+	f:SetScript("OnSizeChanged", function()
+		if not f.sizing then return end
+		local _, rows = SizeToConfig()
+		LayoutBars(f, rows, f:GetWidth())
 		Refresh()
 	end)
 	for b = 1, 40 do
@@ -830,6 +998,7 @@ EnsureWindows = function()
 		local f = windows[i] or NewWindow(i)
 		f.cfg = db.windows[i]
 		f.scrollOffset, f.selectedGuid, f.selectedName = 0, nil, nil
+		f.UpdateLock()
 		f:Show()
 	end
 	for i = #db.windows + 1, #windows do windows[i]:Hide() end
@@ -860,6 +1029,10 @@ local function InitDb()
 	if not db.windows or not db.windows[1] then
 		db.windows = { { mode = db.mode or "damage", view = "current", point = db.point } }
 	end
+	if db.locked ~= nil then
+		for _, c in ipairs(db.windows) do c.locked = db.locked or nil end
+		db.locked = nil
+	end
 	db.mode = nil
 	for i = #db.windows, FM.MAX_WINDOWS + 1, -1 do db.windows[i] = nil end
 	for _, c in ipairs(db.windows) do
@@ -878,7 +1051,7 @@ local events = CreateFrame("Frame")
 local elapsedSince = 0
 events:SetScript("OnUpdate", function(_, elapsed)
 	elapsedSince = elapsedSince + elapsed
-	if elapsedSince < 0.5 or not db then return end
+	if not db or elapsedSince < db.refresh then return end
 	elapsedSince = 0
 	Refresh()
 end)
@@ -906,7 +1079,7 @@ events:SetScript("OnEvent", function(_, event, arg1)
 	elseif event == "GROUP_ROSTER_UPDATE" then
 		wipe(threatSamples)
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		for i = 1, #db.windows do windows[i].warnedGuid = nil end
+		warnedGuid = nil
 		Refresh()
 	elseif event == "DAMAGE_METER_RESET" then
 		for i = 1, #db.windows do
@@ -986,16 +1159,22 @@ SlashCmdList.FOREVERMETER = function(input)
 	cmd = cmd:lower()
 	local num = tonumber(arg)
 	local first = windows[1]
-	if cmd == "lock" then db.locked = true; Print(L.MSG_LOCKED)
-	elseif cmd == "unlock" then db.locked = false; Print(L.MSG_UNLOCKED)
+	if cmd == "lock" or cmd == "unlock" then
+		for i = 1, #db.windows do windows[i].cfg.locked = cmd == "lock"; windows[i].UpdateLock() end
+		Print(cmd == "lock" and L.MSG_LOCKED or L.MSG_UNLOCKED)
 	elseif cmd == "toggle" then ToggleWindows()
 	elseif cmd == "scale" and num then db.scale = math.max(0.5, math.min(2, num))
-	elseif cmd == "rows" and num then db.rows = math.max(1, math.min(40, math.floor(num)))
-	elseif cmd == "width" and num then db.width = math.max(150, math.min(600, math.floor(num)))
+	elseif cmd == "rows" and num then
+		db.rows = math.max(1, math.min(40, math.floor(num)))
+		for _, c in ipairs(db.windows) do c.rows = nil end
+	elseif cmd == "width" and num then
+		db.width = math.max(150, math.min(600, math.floor(num)))
+		for _, c in ipairs(db.windows) do c.width = nil end
+	elseif cmd == "refresh" and num then db.refresh = math.max(0.05, math.min(2, num)); Print(string.format(L.MSG_REFRESH, db.refresh))
 	elseif cmd == "windows" and num then
 		num = math.max(1, math.min(FM.MAX_WINDOWS, math.floor(num)))
-		while #db.windows < num do db.windows[#db.windows + 1] = FM.NewWindowConfig(db.windows, WindowHeight()) end
-		while #db.windows > num do db.windows[#db.windows] = nil end
+		while #db.windows < num do db.windows[#db.windows + 1] = FM.NewWindowConfig(db.windows, WindowHeight(db.windows[#db.windows].rows)) end
+		while #db.windows > num do RemoveWindow(#db.windows) end
 		EnsureWindows()
 		Print(string.format(L.MSG_WINDOWS, #db.windows))
 	elseif cmd == "mode" and FM.MODE_INFO[arg:lower()] then SelectMode(first, arg:lower())

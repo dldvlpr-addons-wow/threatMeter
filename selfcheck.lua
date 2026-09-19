@@ -47,7 +47,30 @@ local list = { { mode = "damage", view = "overall", point = { "TOPLEFT", nil, "T
 local w2 = FM.NewWindowConfig(list, 100)
 assert(w2.mode == "heal" and w2.view == "current" and w2.point[3] == "TOPLEFT" and w2.point[4] == 20 and w2.point[5] == -136)
 list[1].mode = "heal"
-assert(FM.NewWindowConfig(list, 100).mode == "damage")
+assert(FM.NewWindowConfig(list, 100).mode == "damage" and w2.anchor.to == 1 and w2.anchor.side == "BOTTOM")
+
+-- Aimantation : rects { left, right, top, bottom }. Fenêtre A en 0..100 x 100..0.
+local A = { 0, 100, 100, 0 }
+assert(FM.SnapSide({ 3, 103, -4, -60 }, A, 15) == "BOTTOM")
+assert(FM.SnapSide({ 0, 100, 150, 104 }, A, 15) == "TOP")
+assert(FM.SnapSide({ 102, 200, 98, 40 }, A, 15) == "RIGHT")
+assert(FM.SnapSide({ -110, -1, 100, 50 }, A, 15) == "LEFT")
+assert(FM.SnapSide({ 30, 130, 300, 200 }, A, 15) == nil)
+
+-- Chaîne d'ancrage : valide, cible absente, boucle.
+local chain = { { anchor = nil }, { anchor = { to = 1 } }, { anchor = { to = 2 } } }
+assert(not FM.AnchorValid(chain, 1) and FM.AnchorValid(chain, 2) and FM.AnchorValid(chain, 3))
+chain[1].anchor = { to = 3 }
+assert(not FM.AnchorValid(chain, 1) and not FM.AnchorValid(chain, 2) and not FM.AnchorValid(chain, 3), "boucle 1->3->2->1")
+chain[1].anchor = { to = 9 }
+assert(not FM.AnchorValid(chain, 1))
+chain[1].anchor = { to = 1 }
+assert(not FM.AnchorValid(chain, 1))
+
+-- Retrait d'une fenêtre : ancrages vers elle décrochés, index au-dessus décalés.
+local cfgs = { { n = 1 }, { n = 2, anchor = { to = 1 } }, { n = 3, anchor = { to = 2 } }, { n = 4, anchor = { to = 3 } } }
+FM.RemoveWindowConfig(cfgs, 2)
+assert(#cfgs == 3 and cfgs[2].n == 3 and cfgs[2].anchor == nil and cfgs[3].n == 4 and cfgs[3].anchor.to == 2)
 
 -- Langues : GetLocale absent hors client -> anglais ; changement sur place, clés complètes partout.
 assert(NS.L.MODE_DAMAGE == "Damage" and FM.MODE_INFO.damage.label == "Damage")

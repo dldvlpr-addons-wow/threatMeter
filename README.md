@@ -18,12 +18,18 @@ Copier le dossier dans `World of Warcraft/_classic_beta_/Interface/AddOns/Foreve
 - Modes : dégâts, soins, absorptions, dégâts subis, interruptions, dissipations, morts, menace.
 - Jusqu'à 4 fenêtres, chacune avec son mode, sa session et sa position (dégâts et soins côte à côte, par exemple).
   Menu → **Nouvelle fenêtre** / **Fermer cette fenêtre**, ou `/fm windows 2`.
+- Ancrage : une nouvelle fenêtre se colle sous la précédente. Relâcher une fenêtre contre le bord d'une autre la colle
+  (elle suit alors ses déplacements et sa taille) ; la déplacer la décroche.
+- Taille : poignée en bas à droite de chaque fenêtre (largeur et nombre de lignes, fenêtre par fenêtre).
+  `/fm rows` et `/fm width` fixent une taille commune et effacent les tailles individuelles.
 - Sessions : combat actuel, global, ou n'importe quel combat conservé par le client.
 - Bouton **Menu** (ou clic droit sur le titre) : mode, session, verrou, fenêtres. Bouton **Reset** : remise à zéro.
+- Cadenas dans le titre : verrouille position et taille de cette fenêtre seule (`/fm lock` / `unlock` : toutes).
 - Survol d'une barre : top 5 des sorts de la source. Clic : détail par sort (icône, total, par seconde). Molette : défilement.
 - Icône de spécialisation fournie par le client quand elle existe, sinon icône de classe.
 - Dégâts subis : le détail par sort indique la créature qui l'a lancé.
 - Morts : instant de la mort sur la barre, derniers coups reçus (recap de mort du client) au survol.
+- Rafraîchissement toutes les 0,2 s par défaut, en plus des événements du compteur (`/fm refresh 0.1` pour plus vif).
 - Bouton dans le compartiment d'addons (à côté de la minimap) pour afficher ou masquer les fenêtres.
 - Menace : alerte visuelle et sonore au-dessus d'un seuil réglable (`/fm warn 90`).
 - Rapport en chat (`/fm report 5`) : raid, groupe ou say selon le contexte.
@@ -34,7 +40,7 @@ Copier le dossier dans `World of Warcraft/_classic_beta_/Interface/AddOns/Foreve
 ```
 /fm mode <damage|heal|absorbs|taken|interrupts|dispels|deaths|threat>
 /fm report [N] | reset | lock | unlock | toggle
-/fm windows <1-4> | scale <x> | rows <n> | width <px> | warn <%> | sound | pets | defaults
+/fm windows <1-4> | refresh <s> | scale <x> | rows <n> | width <px> | warn <%> | sound | pets | defaults
 /fm lang [auto|enUS|frFR|deDE|esES|esMX|itIT|ptBR|ruRU|koKR|zhCN|zhTW]
 /fm debug   (valeurs brutes de C_DamageMeter, pour diagnostiquer un affichage)
 ```
