@@ -7,8 +7,8 @@
 -- L'addon affiche donc les barres dans l'ordre fourni par l'API, et complète (%, détail par sort) hors combat.
 --
 -- Structure :
---   1. Logique pure (format, tri de la menace) : testable hors jeu.
---   2. Partie WoW : lecture C_DamageMeter, menace, fenêtres, commandes.
+--   1. Logique pure (format, tri de la menace, lignes du recap de mort) : testable hors jeu.
+--   2. Partie WoW : lecture C_DamageMeter, menace, fenêtres (jusqu'à 4, chacune son mode et sa session), commandes.
 
 local ADDON, NS = ...
 NS = NS or {}
@@ -32,6 +32,8 @@ FM.MODE_INFO = {
 	threat     = { label = L.MODE_THREAT },
 }
 FM.SESSION_OVERALL, FM.SESSION_CURRENT = 0, 1
+FM.MAX_WINDOWS = 4
+FM.RECAP_LINES = 6
 
 local LABEL_KEYS = {
 	damage = "MODE_DAMAGE", heal = "MODE_HEAL", absorbs = "MODE_ABSORBS", taken = "MODE_TAKEN",
@@ -74,12 +76,11 @@ local DEFAULTS = {
 	rows = 10,
 	width = 260,
 	rowHeight = 16,
-	mode = "damage",
 	warnPct = 90,
 	warnSound = true,
 	showPets = true,
 	locale = nil,                         -- nil = langue du client (GetLocale)
-	point = { "CENTER", nil, "CENTER", 300, 0 },
+	point = { "CENTER", nil, "CENTER", 300, 0 }, -- position de la première fenêtre
 }
 
 ------------------------------------------------------------------------
@@ -130,6 +131,36 @@ function FM.ComputeTps(previous, value, now)
 	return tps > 0 and tps or 0
 end
 
+-- Derniers événements d'un recap de mort (C_DeathRecap.GetRecapEvents), du plus ancien au plus récent.
+-- Chaque ligne : { left = "-2.3s  Sort (source)", right = "-1.2k  35%" }. `spellName(id)` résout un ID de sort.
+function FM.RecapLines(events, spellName, maxLines)
+	local lines = {}
+	if not events or #events == 0 then return lines end
+	maxLines = maxLines or FM.RECAP_LINES
+	local last = events[#events].timestamp or 0
+	for i = math.max(1, #events - maxLines + 1), #events do
+		local e = events[i]
+		local name = e.spellName or (e.spellId and spellName and spellName(e.spellId)) or e.environmentalType or "?"
+		if e.sourceName and e.sourceName ~= "" then name = name .. " (" .. e.sourceName .. ")" end
+		local right = "-" .. FM.FormatValue(e.amount or 0)
+		if e.currentHP then right = right .. "  " .. FM.FormatValue(e.currentHP) end
+		lines[#lines + 1] = { left = string.format("%.1fs  %s", (e.timestamp or last) - last, name), right = right }
+	end
+	return lines
+end
+
+-- Configuration d'une nouvelle fenêtre : mode opposé à celui de la première, posée sous la précédente.
+function FM.NewWindowConfig(list, windowHeight)
+	local prev = list[#list]
+	if not prev then return { mode = "damage", view = "current", point = DEFAULTS.point } end
+	local p = prev.point
+	return {
+		mode = list[1].mode == "damage" and "heal" or "damage",
+		view = "current",
+		point = { p[1], nil, p[3], p[4], p[5] - windowHeight - 6 },
+	}
+end
+
 ------------------------------------------------------------------------
 -- 2. Partie WoW
 ------------------------------------------------------------------------
@@ -144,6 +175,7 @@ guard:RegisterEvent("ADDON_ACTION_BLOCKED")
 guard:SetScript("OnEvent", function(_, event, addonName, func)
 	if addonName ~= ADDON then return end
 	local line = date("%H:%M:%S") .. " " .. event .. " " .. tostring(func) .. (guard.pending and (" [" .. guard.pending .. "]") or "")
+	if #forbiddenLog >= 50 then table.remove(forbiddenLog, 1) end
 	forbiddenLog[#forbiddenLog + 1] = line
 	if ForeverMeterDB then ForeverMeterDB.forbidden = forbiddenLog end
 	DEFAULT_CHAT_FRAME:AddMessage("|cffff3333ForeverMeter|r : " .. string.format(L.FORBIDDEN, line))
@@ -170,34 +202,49 @@ local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 local WARN_SOUND = SOUNDKIT and SOUNDKIT.RAID_WARNING or 8959
 local issecretvalue = issecretvalue or function() return false end
 local DamageMeter = C_DamageMeter
+local DeathRecap = C_DeathRecap
 
 local db
-local view = "current"                    -- "current" | "overall" | sessionID (number)
+local windows = {}                        -- frames ; windows[i].cfg == db.windows[i] = { mode, view, point }
 local threatSamples = {}
-local warnedGuid = nil
-local scrollOffset = 0
-local selectedGuid = nil                  -- GUID ouvert dans la fenêtre de détail
-local selectedName = nil
 
-------------------------------------------------------------------------
--- Lecture de C_DamageMeter
-------------------------------------------------------------------------
-local function MeterType()
-	return FM.MODE_INFO[db.mode].type
+local function Print(msg)
+	DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99ForeverMeter|r : " .. msg)
 end
 
--- Session affichée selon la vue. nil si l'API est absente ou la session inconnue.
-local function ReadSession()
+local function WindowHeight()
+	return 18 + db.rows * (db.rowHeight + 1) + 3
+end
+
+------------------------------------------------------------------------
+-- Lecture de C_DamageMeter (par fenêtre : win.cfg.mode, win.cfg.view)
+------------------------------------------------------------------------
+local function MeterType(win)
+	return FM.MODE_INFO[win.cfg.mode].type
+end
+
+-- Session affichée selon la vue ("current" | "overall" | sessionID). nil si l'API est absente ou la session inconnue.
+local function ReadSession(win)
 	if not DamageMeter then return nil end
-	local t = MeterType()
+	local t, view = MeterType(win), win.cfg.view
 	if view == "overall" then return DamageMeter.GetCombatSessionFromType(FM.SESSION_OVERALL, t) end
 	if view == "current" then return DamageMeter.GetCombatSessionFromType(FM.SESSION_CURRENT, t) end
 	return DamageMeter.GetCombatSessionFromID(view, t)
 end
 
+-- Sorts d'une source (GUID lisible) pour le mode et la session de la fenêtre.
+local function ReadSource(win, guid)
+	if not DamageMeter then return nil end
+	local t, view = MeterType(win), win.cfg.view
+	if view == "overall" or view == "current" then
+		return DamageMeter.GetCombatSessionSourceFromType(view == "overall" and FM.SESSION_OVERALL or FM.SESSION_CURRENT, t, guid)
+	end
+	return DamageMeter.GetCombatSessionSourceFromID(view, t, guid)
+end
+
 -- Durée de la session affichée, en secondes, ou nil si le client ne la donne pas ou la garde secrète.
-local function SessionDuration(session)
-	local d = session and session.durationSeconds
+local function SessionDuration(win, session)
+	local d, view = session and session.durationSeconds, win.cfg.view
 	if d == nil and (view == "overall" or view == "current") and DamageMeter and DamageMeter.GetSessionDurationSeconds then
 		d = DamageMeter.GetSessionDurationSeconds(view == "overall" and FM.SESSION_OVERALL or FM.SESSION_CURRENT)
 	end
@@ -208,11 +255,11 @@ end
 -- Par seconde d'une source ou d'un sort : amountPerSecond de l'API (vérifié : c'est bien le débit,
 -- le type Dps de l'enum ne rend que le total). Hors combat, si l'API rend 0 avec un total non nul,
 -- repli total / durée de session.
-local function PerSecond(entry, session, secret)
+local function PerSecond(win, entry, session, secret)
 	local ps = entry.amountPerSecond or 0
 	if secret then return ps end
 	if ps == 0 and (entry.totalAmount or 0) > 0 then
-		local d = SessionDuration(session)
+		local d = SessionDuration(win, session)
 		if d then ps = entry.totalAmount / d end
 	end
 	return ps
@@ -223,7 +270,8 @@ local function AvailableSessions()
 	return DamageMeter.GetAvailableCombatSessions() or {}
 end
 
-local function SessionLabel(session)
+local function SessionLabel(win, session)
+	local view = win.cfg.view
 	if view == "overall" then return L.SESSION_OVERALL end
 	if view == "current" then
 		local d = session and session.durationSeconds
@@ -232,28 +280,20 @@ local function SessionLabel(session)
 	for _, s in ipairs(AvailableSessions()) do
 		if s.sessionID == view then
 			local d = s.durationSeconds
-			return s.name .. (d and not issecretvalue(d) and (" (" .. FM.FormatTime(d) .. ")") or "")
+			-- string.format accepte un nom secret (créature, en combat), la concaténation non.
+			return string.format("%s%s", s.name, not issecretvalue(d) and d and (" (" .. FM.FormatTime(d) .. ")") or "")
 		end
 	end
 	return string.format(L.SESSION_UNKNOWN, tostring(view))
 end
 
-local function CycleView(step)
-	local order = { "current", "overall" }
-	for _, s in ipairs(AvailableSessions()) do order[#order + 1] = s.sessionID end
-	local idx = 1
-	for i, v in ipairs(order) do if v == view then idx = i end end
-	idx = ((idx - 1 + step) % #order) + 1
-	view = order[idx]
-	scrollOffset = 0
-end
+local function SelectMode(win, m) win.cfg.mode = m; win.scrollOffset = 0; win.selectedGuid = nil end
+local function SelectView(win, v) win.cfg.view = v; win.scrollOffset = 0; win.selectedGuid = nil end
 
-local function CycleMode(step)
+local function CycleMode(win, step)
 	local idx = 1
-	for i, m in ipairs(FM.MODES) do if m == db.mode then idx = i end end
-	idx = ((idx - 1 + step) % #FM.MODES) + 1
-	db.mode = FM.MODES[idx]
-	scrollOffset = 0
+	for i, m in ipairs(FM.MODES) do if m == win.cfg.mode then idx = i end end
+	SelectMode(win, FM.MODES[((idx - 1 + step) % #FM.MODES) + 1])
 end
 
 -- Sources de la session. Triées par l'API ; re-triées ici seulement quand les montants sont lisibles.
@@ -266,14 +306,28 @@ local function Sources(session)
 	return list
 end
 
+-- Sorts d'une source, triés quand lisibles. Renvoie la liste et le drapeau secret.
+local function SortedSpells(source)
+	local spells = source and source.combatSpells or {}
+	local secret = spells[1] and issecretvalue(spells[1].totalAmount) or false
+	if not secret then
+		table.sort(spells, function(a, b) return a.totalAmount > b.totalAmount end)
+	end
+	return spells, secret
+end
+
 ------------------------------------------------------------------------
 -- Menace (hors C_DamageMeter)
 ------------------------------------------------------------------------
+-- En raid, raid1..N contient déjà le joueur : "player" n'est ajouté qu'en solo ou en groupe.
 local function GroupUnits()
-	local units = { "player" }
 	if IsInRaid() then
+		local units = {}
 		for i = 1, GetNumGroupMembers() do units[#units + 1] = "raid" .. i end
-	elseif IsInGroup() then
+		return units
+	end
+	local units = { "player" }
+	if IsInGroup() then
 		for i = 1, GetNumGroupMembers() - 1 do units[#units + 1] = "party" .. i end
 	end
 	return units
@@ -321,7 +375,7 @@ end
 -- Fenêtres
 ------------------------------------------------------------------------
 local function ClassColor(class)
-	local c = class and RAID_CLASS_COLORS[class]
+	local c = not issecretvalue(class) and class and RAID_CLASS_COLORS[class]
 	if c then return c.r, c.g, c.b end
 	return 0.6, 0.6, 0.6
 end
@@ -383,7 +437,7 @@ end
 local function LayoutWindow(f, rows, width)
 	f:SetScale(db.scale)
 	f:SetWidth(width)
-	f:SetHeight(18 + rows * (db.rowHeight + 1) + 3)
+	f:SetHeight(WindowHeight())
 	for i = 1, math.max(rows, #f.bars) do
 		local bar = f.bars[i] or MakeBar(f, i)
 		bar:SetSize(width - 6, db.rowHeight)
@@ -394,26 +448,31 @@ local function LayoutWindow(f, rows, width)
 	end
 end
 
-local main = MakeWindow("ForeverMeterFrame", DEFAULTS.width, 100)
+-- Fenêtre de détail par sort, unique, ancrée à la fenêtre qui l'a ouverte (detail.owner).
 local detail = MakeWindow("ForeverMeterDetailFrame", DEFAULTS.width, 100)
 detail:Hide()
 detail.close = CreateFrame("Button", nil, detail.header, "UIPanelCloseButton")
 detail.close:SetPoint("RIGHT", 2, 0)
 detail.close:SetSize(20, 20)
-detail.close:SetScript("OnClick", function() selectedGuid = nil; detail:Hide() end)
+detail.close:SetScript("OnClick", function()
+	if detail.owner then detail.owner.selectedGuid = nil end
+	detail:Hide()
+end)
 
-main.OnMoved = function()
-	local point, _, relPoint, x, y = main:GetPoint()
-	db.point = { point, nil, relPoint, x, y }
+local function AnchorDetail()
+	detail:ClearAllPoints()
+	detail:SetPoint("TOPLEFT", detail.owner or windows[1], "TOPRIGHT", 4, 0)
 end
 
 local function Layout()
-	LayoutWindow(main, db.rows, db.width)
+	for i = 1, #db.windows do
+		local f = windows[i]
+		LayoutWindow(f, db.rows, db.width)
+		f:ClearAllPoints()
+		f:SetPoint(f.cfg.point[1], UIParent, f.cfg.point[3], f.cfg.point[4], f.cfg.point[5])
+	end
 	LayoutWindow(detail, db.rows, db.width)
-	main:ClearAllPoints()
-	main:SetPoint(db.point[1], UIParent, db.point[3], db.point[4], db.point[5])
-	detail:ClearAllPoints()
-	detail:SetPoint("TOPLEFT", main, "TOPRIGHT", 4, 0)
+	AnchorDetail()
 end
 
 local GetSpellTextureCompat = (C_Spell and C_Spell.GetSpellTexture) or GetSpellTexture
@@ -423,9 +482,19 @@ local function SpellIcon(spellID)
 	return tex or "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 
+-- Nom d'un sort ; en dégâts subis, la créature qui l'a lancé (hors combat : le nom est secret en combat).
+local function SpellLabel(win, s)
+	local name = GetSpellNameCompat(s.spellID) or ("#" .. tostring(s.spellID))
+	local creature = s.creatureName
+	if win.cfg.mode == "taken" and creature and not issecretvalue(creature) and creature ~= "" then
+		return name .. " · " .. creature
+	end
+	return name
+end
+
 local CLASS_ICONS = "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes"
 local function SetClassIcon(bar, class)
-	local coords = class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
+	local coords = not issecretvalue(class) and class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
 	if coords then
 		bar.icon:SetTexture(CLASS_ICONS)
 		bar.icon:SetTexCoord(unpack(coords))
@@ -434,25 +503,30 @@ local function SetClassIcon(bar, class)
 	end
 end
 
--- Détail par sort d'une source. Le GUID d'un autre joueur est secret en combat : détail hors combat seulement.
-local function RenderDetail()
-	if not selectedGuid or db.mode == "threat" or not DamageMeter then detail:Hide(); return end
-	local t = MeterType()
-	local source
-	if view == "overall" or view == "current" then
-		source = DamageMeter.GetCombatSessionSourceFromType(view == "overall" and FM.SESSION_OVERALL or FM.SESSION_CURRENT, t, selectedGuid)
+-- Icône de spé fournie par l'API quand elle est lisible, sinon icône de classe.
+local function SetSourceIcon(bar, src)
+	local spec = src.specIconID
+	if not issecretvalue(spec) and spec and spec > 0 then
+		bar.icon:SetTexture(spec)
+		bar.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 	else
-		source = DamageMeter.GetCombatSessionSourceFromID(view, t, selectedGuid)
+		SetClassIcon(bar, src.classFilename)
 	end
-	local spells = source and source.combatSpells or {}
+end
+
+-- Détail par sort de la source sélectionnée dans detail.owner. Le GUID d'un autre joueur est secret en combat.
+local function RenderDetail()
+	local win = detail.owner
+	if not win or not win:IsShown() or not win.selectedGuid or win.cfg.mode == "threat" or not DamageMeter then
+		detail:Hide()
+		return
+	end
+	local source = ReadSource(win, win.selectedGuid)
+	local spells, secret = SortedSpells(source)
 	detail:Show()
-	detail.title:SetText((selectedName or "?") .. " : " .. FM.MODE_INFO[db.mode].label)
-	local secret = spells[1] and issecretvalue(spells[1].totalAmount)
-	if not secret then
-		table.sort(spells, function(a, b) return a.totalAmount > b.totalAmount end)
-	end
+	detail.title:SetText((win.selectedName or "?") .. " : " .. FM.MODE_INFO[win.cfg.mode].label)
 	local sessionTotal = source and source.totalAmount
-	local session = ReadSession()
+	local session = ReadSession(win)
 	for i = 1, db.rows do
 		local bar, s = detail.bars[i], spells[i]
 		if s then
@@ -461,8 +535,8 @@ local function RenderDetail()
 			bar:SetStatusBarColor(0.8, 0.6, 0.2)
 			bar.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 			bar.icon:SetTexture(SpellIcon(s.spellID))
-			bar.left:SetText(GetSpellNameCompat(s.spellID) or ("#" .. tostring(s.spellID)))
-			bar.right:SetText(FM.FormatRow(s.totalAmount, PerSecond(s, session, secret), sessionTotal, secret))
+			bar.left:SetText(SpellLabel(win, s))
+			bar.right:SetText(FM.FormatRow(s.totalAmount, PerSecond(win, s, session, secret), sessionTotal, secret))
 			bar:Show()
 		else
 			bar:Hide()
@@ -470,29 +544,37 @@ local function RenderDetail()
 	end
 end
 
-local function RenderMeter()
-	local session = ReadSession()
-	main.title:SetText(FM.MODE_INFO[db.mode].label .. " · " .. SessionLabel(session))
+local function RenderMeter(win)
+	local session = ReadSession(win)
+	local mode = win.cfg.mode
+	win.title:SetText(FM.MODE_INFO[mode].label .. " · " .. SessionLabel(win, session))
 	if not DamageMeter or (DamageMeter.IsDamageMeterAvailable and not DamageMeter.IsDamageMeterAvailable()) then
-		main.title:SetText(FM.MODE_INFO[db.mode].label .. " · " .. L.METER_UNAVAILABLE)
+		win.title:SetText(FM.MODE_INFO[mode].label .. " · " .. L.METER_UNAVAILABLE)
 	end
 	local list = Sources(session)
 	local maxAmount = session and session.maxAmount or 1
 	local sessionTotal = session and session.totalAmount
 	local secret = list[1] and issecretvalue(list[1].totalAmount)
-	if secret then scrollOffset = 0 end
+	if secret then win.scrollOffset = 0 end
 	local maxOffset = math.max(0, #list - db.rows)
-	if scrollOffset > maxOffset then scrollOffset = maxOffset end
+	if win.scrollOffset > maxOffset then win.scrollOffset = maxOffset end
 	for i = 1, db.rows do
-		local bar, src = main.bars[i], list[i + scrollOffset]
+		local bar, src = win.bars[i], list[i + win.scrollOffset]
 		if src then
 			bar:SetMinMaxValues(0, maxAmount)
 			bar:SetValue(src.totalAmount)
 			bar:SetStatusBarColor(ClassColor(src.classFilename))
-			SetClassIcon(bar, src.classFilename)
-			bar.left:SetText(string.format("%d. %s", i + scrollOffset, src.name))
-			bar.right:SetText(FM.FormatRow(src.totalAmount, PerSecond(src, session, secret), sessionTotal, secret))
+			SetSourceIcon(bar, src)
+			bar.left:SetText(string.format("%d. %s", i + win.scrollOffset, src.name))
+			local deathTime = mode == "deaths" and src.deathTimeSeconds
+			if not secret and not issecretvalue(deathTime) and deathTime then
+				-- Morts : nombre, puis instant de la (dernière) mort dans le combat.
+				bar.right:SetText(FM.FormatValue(src.totalAmount) .. " · " .. FM.FormatTime(deathTime))
+			else
+				bar.right:SetText(FM.FormatRow(src.totalAmount, PerSecond(win, src, session, secret), sessionTotal, secret))
+			end
 			bar.glow:Hide()
+			bar.source = src
 			-- Son propre GUID reste lisible en combat ; celui des autres seulement hors combat.
 			if src.isLocalPlayer then
 				bar.sourceGuid, bar.sourceName = UnitGUID("player"), UnitName("player")
@@ -503,24 +585,22 @@ local function RenderMeter()
 			end
 			bar:Show()
 		else
-			bar.sourceGuid = nil
+			bar.source, bar.sourceGuid = nil, nil
 			bar:Hide()
 		end
 	end
-	RenderDetail()
 end
 
-local function RenderThreat()
+local function RenderThreat(win)
 	local enemy = ThreatTarget()
-	main.title:SetText(L.MODE_THREAT .. " · " .. (enemy and (UnitName(enemy) or "?") or L.THREAT_NO_TARGET))
-	detail:Hide()
+	win.title:SetText(L.MODE_THREAT .. " · " .. (enemy and (UnitName(enemy) or "?") or L.THREAT_NO_TARGET))
 	local ok, list = pcall(function() return enemy and CollectThreat(enemy) or {} end)
 	if not ok then
-		main.title:SetText(L.MODE_THREAT .. " · " .. L.THREAT_UNAVAILABLE)
+		win.title:SetText(L.MODE_THREAT .. " · " .. L.THREAT_UNAVAILABLE)
 		list = {}
 	end
 	for i = 1, db.rows do
-		local bar, row = main.bars[i], list[i]
+		local bar, row = win.bars[i], list[i]
 		if row then
 			bar:SetMinMaxValues(0, 100)
 			bar:SetValue(row.pct)
@@ -530,13 +610,13 @@ local function RenderThreat()
 			bar.right:SetText(string.format("%s  %s/s  %d%%", FM.FormatValue(row.value), FM.FormatValue(row.tps), row.pct))
 			local warn = row.isPlayer and FM.ShouldWarn(row, db.warnPct) or false
 			bar.glow:SetShown(warn)
-			bar.sourceGuid = nil
+			bar.source, bar.sourceGuid = nil, nil
 			bar:Show()
-			if warn and warnedGuid ~= row.guid then
-				warnedGuid = row.guid
+			if warn and win.warnedGuid ~= row.guid then
+				win.warnedGuid = row.guid
 				if db.warnSound then PlaySound(WARN_SOUND, "Master") end
 			elseif row.isPlayer and not warn then
-				warnedGuid = nil
+				win.warnedGuid = nil
 			end
 		else
 			bar:Hide()
@@ -545,36 +625,123 @@ local function RenderThreat()
 end
 
 local function Refresh()
-	if db.mode == "threat" then RenderThreat() else RenderMeter() end
+	for i = 1, #db.windows do
+		local win = windows[i]
+		if win:IsShown() then
+			if win.cfg.mode == "threat" then RenderThreat(win) else RenderMeter(win) end
+		end
+	end
+	RenderDetail()
 end
 
 ------------------------------------------------------------------------
--- Boutons du titre : menu déroulant (mode + session) et remise à zéro
+-- Tooltip d'une barre : top sorts de la source, ou recap de mort en mode Morts
 ------------------------------------------------------------------------
+local function AddRecapLines(recapID)
+	local ok, has = pcall(function()
+		return DeathRecap and recapID and not issecretvalue(recapID) and recapID ~= -1 and DeathRecap.HasRecapEvents(recapID)
+	end)
+	local events = ok and has and DeathRecap.GetRecapEvents(recapID) or nil
+	if not events or #events == 0 then
+		GameTooltip:AddLine(L.TIP_NO_RECAP, 0.7, 0.7, 0.7)
+		return
+	end
+	if issecretvalue(events[#events].amount) then
+		GameTooltip:AddLine(L.DETAIL_OUT_OF_COMBAT, 0.7, 0.7, 0.7)
+		return
+	end
+	for _, line in ipairs(FM.RecapLines(events, GetSpellNameCompat)) do
+		GameTooltip:AddDoubleLine(line.left, line.right, 1, 1, 1, 1, 0.5, 0.5)
+	end
+end
+
+local function ShowTooltip(bar)
+	local win, src = bar.win, bar.source
+	if not src or win.cfg.mode == "threat" then return end
+	GameTooltip:SetOwner(bar, "ANCHOR_RIGHT")
+	GameTooltip:SetText(src.name, ClassColor(src.classFilename))
+	if win.cfg.mode == "deaths" then
+		AddRecapLines(src.deathRecapID)
+	elseif bar.sourceGuid then
+		local source = ReadSource(win, bar.sourceGuid)
+		local spells, secret = SortedSpells(source)
+		local session = ReadSession(win)
+		for i = 1, math.min(5, #spells) do
+			local s = spells[i]
+			GameTooltip:AddDoubleLine(SpellLabel(win, s), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, secret), source.totalAmount, secret), 1, 1, 1, 1, 1, 1)
+		end
+		GameTooltip:AddLine(L.TIP_CLICK, 0.5, 0.5, 0.5)
+	else
+		GameTooltip:AddLine(L.DETAIL_OUT_OF_COMBAT, 0.7, 0.7, 0.7)
+	end
+	GameTooltip:Show()
+end
+
+-- Clic sur une barre : détail par sort, dans la fenêtre de détail unique.
+local function BarClick(bar)
+	local win = bar.win
+	if not bar.sourceGuid then
+		if win.cfg.mode ~= "threat" then Print(L.DETAIL_OUT_OF_COMBAT) end
+		return
+	end
+	if detail.owner == win and win.selectedGuid == bar.sourceGuid then
+		win.selectedGuid, win.selectedName = nil, nil
+	else
+		if detail.owner and detail.owner ~= win then detail.owner.selectedGuid = nil end
+		detail.owner = win
+		win.selectedGuid, win.selectedName = bar.sourceGuid, bar.sourceName
+		AnchorDetail()
+	end
+	Refresh()
+end
+
+------------------------------------------------------------------------
+-- Menu (mode, session, fenêtres, verrou, remise à zéro) et gestion des fenêtres
+------------------------------------------------------------------------
+local EnsureWindows -- défini plus bas, après NewWindow
+
 local function ResetData()
 	if DamageMeter and DamageMeter.ResetAllCombatSessions then DamageMeter.ResetAllCombatSessions() end
-	view, selectedGuid, scrollOffset = "current", nil, 0
+	for i = 1, #db.windows do SelectView(windows[i], "current") end
 	wipe(threatSamples)
 	Refresh()
 end
 
-local function SelectMode(m) db.mode = m; scrollOffset = 0; selectedGuid = nil; Refresh() end
-local function SelectView(v) view = v; scrollOffset = 0; selectedGuid = nil; Refresh() end
+local function AddWindow()
+	if #db.windows >= FM.MAX_WINDOWS then return end
+	db.windows[#db.windows + 1] = FM.NewWindowConfig(db.windows, WindowHeight())
+	EnsureWindows()
+	Layout()
+	Refresh()
+end
 
--- Entrées du menu sous forme neutre : { text, checked(), func } ou { title } ou { divider }.
-local function MenuEntries()
+local function CloseWindow(win)
+	if #db.windows <= 1 then return end
+	table.remove(db.windows, win.index)
+	EnsureWindows()
+	Layout()
+	Refresh()
+end
+
+-- Entrées du menu sous forme neutre : { text, checked(), func [, checkbox] } ou { title } ou { divider }.
+local function MenuEntries(win)
 	local entries = { { title = L.MENU_DISPLAY } }
 	for _, m in ipairs(FM.MODES) do
-		entries[#entries + 1] = { text = FM.MODE_INFO[m].label, checked = function() return db.mode == m end, func = function() SelectMode(m) end }
+		entries[#entries + 1] = { text = FM.MODE_INFO[m].label, checked = function() return win.cfg.mode == m end, func = function() SelectMode(win, m); Refresh() end }
 	end
 	entries[#entries + 1] = { divider = true }
 	entries[#entries + 1] = { title = L.MENU_SESSION }
-	entries[#entries + 1] = { text = L.SESSION_CURRENT, checked = function() return view == "current" end, func = function() SelectView("current") end }
-	entries[#entries + 1] = { text = L.SESSION_OVERALL, checked = function() return view == "overall" end, func = function() SelectView("overall") end }
+	entries[#entries + 1] = { text = L.SESSION_CURRENT, checked = function() return win.cfg.view == "current" end, func = function() SelectView(win, "current"); Refresh() end }
+	entries[#entries + 1] = { text = L.SESSION_OVERALL, checked = function() return win.cfg.view == "overall" end, func = function() SelectView(win, "overall"); Refresh() end }
 	for _, s in ipairs(AvailableSessions()) do
 		local id = s.sessionID
-		entries[#entries + 1] = { text = s.name, checked = function() return view == id end, func = function() SelectView(id) end }
+		entries[#entries + 1] = { text = s.name, checked = function() return win.cfg.view == id end, func = function() SelectView(win, id); Refresh() end }
 	end
+	entries[#entries + 1] = { divider = true }
+	entries[#entries + 1] = { title = L.MENU_WINDOWS }
+	entries[#entries + 1] = { text = L.MENU_LOCK, checkbox = true, checked = function() return db.locked end, func = function() db.locked = not db.locked end }
+	if #db.windows < FM.MAX_WINDOWS then entries[#entries + 1] = { text = L.MENU_NEW_WINDOW, func = AddWindow } end
+	if #db.windows > 1 then entries[#entries + 1] = { text = L.MENU_CLOSE_WINDOW, func = function() CloseWindow(win) end } end
 	entries[#entries + 1] = { divider = true }
 	entries[#entries + 1] = { text = L.MENU_RESET, func = ResetData }
 	return entries
@@ -583,13 +750,14 @@ end
 local legacyDropDown = EasyMenu and CreateFrame("Frame", "ForeverMeterDropDown", UIParent, "UIDropDownMenuTemplate")
 if legacyDropDown then legacyDropDown:Hide() end
 
-local function OpenMenu(owner)
-	local entries = MenuEntries()
+local function OpenMenu(win, owner)
+	local entries = MenuEntries(win)
 	if MenuUtil and MenuUtil.CreateContextMenu then
 		MenuUtil.CreateContextMenu(owner, function(_, root)
 			for _, e in ipairs(entries) do
 				if e.title then root:CreateTitle(e.title)
 				elseif e.divider then root:CreateDivider()
+				elseif e.checkbox then root:CreateCheckbox(e.text, e.checked, e.func)
 				elseif e.checked then root:CreateRadio(e.text, e.checked, e.func)
 				else root:CreateButton(e.text, e.func) end
 			end
@@ -599,11 +767,11 @@ local function OpenMenu(owner)
 		for _, e in ipairs(entries) do
 			if e.title then list[#list + 1] = { text = e.title, isTitle = true, notCheckable = true }
 			elseif e.divider then list[#list + 1] = { text = "", disabled = true, notCheckable = true }
-			else list[#list + 1] = { text = e.text, checked = e.checked, func = e.func, notCheckable = e.checked == nil } end
+			else list[#list + 1] = { text = e.text, checked = e.checked, func = e.func, notCheckable = e.checked == nil, isNotRadio = e.checkbox, keepShownOnClick = e.checkbox } end
 		end
 		EasyMenu(list, legacyDropDown, owner, 0, 0, "MENU")
 	else
-		CycleMode(1)
+		CycleMode(win, 1)
 		Refresh()
 	end
 end
@@ -620,60 +788,101 @@ local function MakeHeaderButton(parent, text, width)
 	return b
 end
 
-main.resetButton = MakeHeaderButton(main.header, L.BTN_RESET, 38)
-main.resetButton:SetPoint("RIGHT", -2, 0)
-main.resetButton:SetScript("OnClick", ResetData)
-main.menuButton = MakeHeaderButton(main.header, L.BTN_MENU, 44)
-main.menuButton:SetPoint("RIGHT", main.resetButton, "LEFT", -2, 0)
-main.menuButton:SetScript("OnClick", function(self) OpenMenu(self) end)
-main.title:SetPoint("RIGHT", main.menuButton, "LEFT", -4, 0)
+-- Fenêtre de compteur n° i : titre (clic gauche = mode suivant, clic droit = menu), boutons Menu et Reset,
+-- molette = défilement, survol d'une barre = tooltip, clic = détail par sort.
+local function NewWindow(i)
+	local f = MakeWindow(i == 1 and "ForeverMeterFrame" or ("ForeverMeterFrame" .. i), DEFAULTS.width, 100)
+	f.index = i
+	f.scrollOffset = 0
+	f.resetButton = MakeHeaderButton(f.header, L.BTN_RESET, 38)
+	f.resetButton:SetPoint("RIGHT", -2, 0)
+	f.resetButton:SetScript("OnClick", ResetData)
+	f.menuButton = MakeHeaderButton(f.header, L.BTN_MENU, 44)
+	f.menuButton:SetPoint("RIGHT", f.resetButton, "LEFT", -2, 0)
+	f.menuButton:SetScript("OnClick", function(self) OpenMenu(f, self) end)
+	f.title:SetPoint("RIGHT", f.menuButton, "LEFT", -4, 0)
+	f.OnMoved = function()
+		local point, _, relPoint, x, y = f:GetPoint()
+		f.cfg.point = { point, nil, relPoint, x, y }
+	end
+	f.header:SetScript("OnClick", function(self, button)
+		if button == "RightButton" then OpenMenu(f, self) else CycleMode(f, 1); Refresh() end
+	end)
+	f:EnableMouseWheel(true)
+	f:SetScript("OnMouseWheel", function(_, delta)
+		f.scrollOffset = math.max(0, f.scrollOffset - delta)
+		Refresh()
+	end)
+	for b = 1, 40 do
+		local bar = MakeBar(f, b)
+		bar.win = f
+		bar:SetScript("OnMouseUp", BarClick)
+		bar:SetScript("OnEnter", ShowTooltip)
+		bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	end
+	windows[i] = f
+	return f
+end
+
+-- Aligne les frames sur db.windows : crée les manquantes, ré-attache les configs, cache le surplus.
+EnsureWindows = function()
+	for i = 1, #db.windows do
+		local f = windows[i] or NewWindow(i)
+		f.cfg = db.windows[i]
+		f.scrollOffset, f.selectedGuid, f.selectedName = 0, nil, nil
+		f:Show()
+	end
+	for i = #db.windows + 1, #windows do windows[i]:Hide() end
+	detail.owner = nil
+	detail:Hide()
+end
+
+local function ToggleWindows()
+	local shown = windows[1]:IsShown()
+	for i = 1, #db.windows do windows[i]:SetShown(not shown) end
+	if shown then detail:Hide() end
+end
+_G.ForeverMeter_Toggle = ToggleWindows -- AddonCompartmentFunc (.toc)
 
 -- Applique la langue choisie (db.locale, sinon celle du client) et met à jour les textes déjà posés.
 local function ApplyLanguage()
 	local code = FM.ApplyLocale(db.locale or GetLocale())
-	main.resetButton:SetText(L.BTN_RESET)
-	main.menuButton:SetText(L.BTN_MENU)
+	for _, f in ipairs(windows) do
+		f.resetButton:SetText(L.BTN_RESET)
+		f.menuButton:SetText(L.BTN_MENU)
+	end
 	return code
 end
 
--- Titre : clic gauche = mode suivant, clic droit = menu.
-main.header:SetScript("OnClick", function(self, button)
-	if button == "RightButton" then OpenMenu(self) else CycleMode(1); Refresh() end
-end)
-main:EnableMouseWheel(true)
-main:SetScript("OnMouseWheel", function(_, delta)
-	scrollOffset = math.max(0, scrollOffset - delta)
-	Refresh()
-end)
--- Clic sur une barre : détail par sort.
-for i = 1, 40 do
-	local bar = main.bars[i] or MakeBar(main, i)
-	bar:SetScript("OnMouseUp", function(self)
-		if not self.sourceGuid then
-			if db.mode ~= "threat" then DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99ForeverMeter|r : " .. L.DETAIL_OUT_OF_COMBAT) end
-			return
-		end
-		if selectedGuid == self.sourceGuid then
-			selectedGuid, selectedName = nil, nil
-		else
-			selectedGuid, selectedName = self.sourceGuid, self.sourceName
-		end
-		Refresh()
-	end)
+-- Valeurs par défaut, migration de l'ancien format (db.mode, db.point) vers db.windows, nettoyage.
+local function InitDb()
+	for k, v in pairs(DEFAULTS) do if db[k] == nil then db[k] = v end end
+	if not db.windows or not db.windows[1] then
+		db.windows = { { mode = db.mode or "damage", view = "current", point = db.point } }
+	end
+	db.mode = nil
+	for i = #db.windows, FM.MAX_WINDOWS + 1, -1 do db.windows[i] = nil end
+	for _, c in ipairs(db.windows) do
+		if not FM.MODE_INFO[c.mode] then c.mode = "damage" end
+		if c.view ~= "overall" then c.view = "current" end -- un sessionID ne survit pas au rechargement
+		c.point = c.point or DEFAULTS.point
+	end
+	if db.locale and not FM.FindLocale(db.locale) then db.locale = nil end
+	db.forbidden = forbiddenLog
 end
 
 ------------------------------------------------------------------------
 -- Événements
 ------------------------------------------------------------------------
+local events = CreateFrame("Frame")
 local elapsedSince = 0
-main:SetScript("OnUpdate", function(_, elapsed)
+events:SetScript("OnUpdate", function(_, elapsed)
 	elapsedSince = elapsedSince + elapsed
 	if elapsedSince < 0.5 or not db then return end
 	elapsedSince = 0
 	Refresh()
 end)
 
-local events = CreateFrame("Frame")
 Register(events, "ADDON_LOADED")
 Register(events, "PLAYER_ENTERING_WORLD")
 Register(events, "GROUP_ROSTER_UPDATE")
@@ -687,10 +896,8 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		if arg1 ~= ADDON then return end
 		ForeverMeterDB = ForeverMeterDB or {}
 		db = ForeverMeterDB
-		for k, v in pairs(DEFAULTS) do if db[k] == nil then db[k] = v end end
-		if not FM.MODE_INFO[db.mode] then db.mode = "damage" end
-		if db.locale and not FM.FindLocale(db.locale) then db.locale = nil end
-		db.forbidden = forbiddenLog
+		InitDb()
+		EnsureWindows()
 		ApplyLanguage()
 		Layout()
 		Refresh()
@@ -699,11 +906,14 @@ events:SetScript("OnEvent", function(_, event, arg1)
 	elseif event == "GROUP_ROSTER_UPDATE" then
 		wipe(threatSamples)
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		warnedGuid = nil
+		for i = 1, #db.windows do windows[i].warnedGuid = nil end
 		Refresh()
 	elseif event == "DAMAGE_METER_RESET" then
-		if type(view) == "number" then view = "current" end
-		selectedGuid = nil
+		for i = 1, #db.windows do
+			local win = windows[i]
+			if type(win.cfg.view) == "number" then win.cfg.view = "current" end
+			win.selectedGuid = nil
+		end
 		Refresh()
 	else
 		Refresh()
@@ -711,15 +921,11 @@ events:SetScript("OnEvent", function(_, event, arg1)
 end)
 
 ------------------------------------------------------------------------
--- Commandes : /fm
+-- Commandes : /fm (mode, report et debug agissent sur la première fenêtre)
 ------------------------------------------------------------------------
-local function Print(msg)
-	DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99ForeverMeter|r : " .. msg)
-end
-
-local function Report(count)
-	if db.mode == "threat" then Print(L.REPORT_NOTHING_THREAT); return end
-	local session = ReadSession()
+local function Report(win, count)
+	if win.cfg.mode == "threat" then Print(L.REPORT_NOTHING_THREAT); return end
+	local session = ReadSession(win)
 	local list = Sources(session)
 	if not list[1] then Print(L.REPORT_NOTHING); return end
 	if issecretvalue(list[1].totalAmount) then Print(L.REPORT_OUT_OF_COMBAT); return end
@@ -728,19 +934,20 @@ local function Report(count)
 	local function Send(msg)
 		if channel then SendChatMessage(msg, channel) else Print(msg) end
 	end
-	Send(string.format(L.REPORT_HEADER, FM.MODE_INFO[db.mode].label, SessionLabel(session)))
+	Send(string.format(L.REPORT_HEADER, FM.MODE_INFO[win.cfg.mode].label, SessionLabel(win, session)))
 	for i = 1, math.min(count, #list) do
 		local s = list[i]
-		Send(string.format("%d. %s  %s", i, s.name, FM.FormatRow(s.totalAmount, PerSecond(s, session, false), session.totalAmount, false)))
+		Send(string.format("%d. %s  %s", i, s.name, FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), session.totalAmount, false)))
 	end
 end
 
--- Diagnostic (/fm debug) : valeurs brutes de C_DamageMeter pour le mode et la session affichés.
+-- Diagnostic (/fm debug) : valeurs brutes de C_DamageMeter pour le mode et la session de la première fenêtre.
 -- Texte technique, volontairement non traduit. %.3f garde les décimales ; string.format accepte les valeurs secrètes.
 local function Raw(v)
 	if v == nil then return "nil" end
 	if type(v) ~= "number" then return tostring(v) end
-	return string.format("%.3f", v) .. (issecretvalue(v) and " (secret)" or "")
+	if issecretvalue(v) then return "(secret)" end
+	return string.format("%.3f", v)
 end
 
 local function Keys(t)
@@ -750,10 +957,11 @@ local function Keys(t)
 	return table.concat(list, ", ")
 end
 
-local function Debug()
-	local session = ReadSession()
-	Print(string.format("debug : mode=%s type=%s vue=%s combat=%s", db.mode, tostring(FM.MODE_INFO[db.mode].type),
-		tostring(view), tostring(UnitAffectingCombat("player") and true or false)))
+local function Debug(win)
+	local session = ReadSession(win)
+	local view = win.cfg.view
+	Print(string.format("debug : mode=%s type=%s vue=%s combat=%s fenetres=%d", win.cfg.mode, tostring(MeterType(win)),
+		tostring(view), tostring(UnitAffectingCombat("player") and true or false), #db.windows))
 	if not session then Print("debug : session nil"); return end
 	Print("debug : session.durationSeconds=" .. Raw(session.durationSeconds) .. " totalAmount=" .. Raw(session.totalAmount))
 	if DamageMeter.GetSessionDurationSeconds and (view == "overall" or view == "current") then
@@ -762,7 +970,8 @@ local function Debug()
 	Print("debug : champs session = " .. Keys(session))
 	for _, src in ipairs(session.combatSources or {}) do
 		if src.isLocalPlayer then
-			Print("debug : joueur totalAmount=" .. Raw(src.totalAmount) .. " amountPerSecond=" .. Raw(src.amountPerSecond))
+			Print("debug : joueur totalAmount=" .. Raw(src.totalAmount) .. " amountPerSecond=" .. Raw(src.amountPerSecond)
+				.. " specIconID=" .. Raw(src.specIconID) .. " deathRecapID=" .. Raw(src.deathRecapID))
 			Print("debug : champs source = " .. Keys(src))
 			return
 		end
@@ -776,16 +985,23 @@ SlashCmdList.FOREVERMETER = function(input)
 	local cmd, arg = input:match("^(%S*)%s*(.-)$")
 	cmd = cmd:lower()
 	local num = tonumber(arg)
+	local first = windows[1]
 	if cmd == "lock" then db.locked = true; Print(L.MSG_LOCKED)
 	elseif cmd == "unlock" then db.locked = false; Print(L.MSG_UNLOCKED)
-	elseif cmd == "toggle" then main:SetShown(not main:IsShown())
+	elseif cmd == "toggle" then ToggleWindows()
 	elseif cmd == "scale" and num then db.scale = math.max(0.5, math.min(2, num))
 	elseif cmd == "rows" and num then db.rows = math.max(1, math.min(40, math.floor(num)))
 	elseif cmd == "width" and num then db.width = math.max(150, math.min(600, math.floor(num)))
-	elseif cmd == "mode" and FM.MODE_INFO[arg] then db.mode = arg; scrollOffset = 0
-	elseif cmd == "report" then Report(num or 5); return
+	elseif cmd == "windows" and num then
+		num = math.max(1, math.min(FM.MAX_WINDOWS, math.floor(num)))
+		while #db.windows < num do db.windows[#db.windows + 1] = FM.NewWindowConfig(db.windows, WindowHeight()) end
+		while #db.windows > num do db.windows[#db.windows] = nil end
+		EnsureWindows()
+		Print(string.format(L.MSG_WINDOWS, #db.windows))
+	elseif cmd == "mode" and FM.MODE_INFO[arg:lower()] then SelectMode(first, arg:lower())
+	elseif cmd == "report" then Report(first, num or 5); return
 	elseif cmd == "debug" then
-		local ok, err = pcall(Debug)
+		local ok, err = pcall(Debug, first)
 		if not ok then Print("debug : erreur " .. tostring(err)) end
 		return
 	elseif cmd == "reset" then
@@ -810,7 +1026,8 @@ SlashCmdList.FOREVERMETER = function(input)
 		Print(string.format(L.MSG_LANG, db.locale or ("auto (" .. applied .. ")")))
 	elseif cmd == "defaults" then
 		wipe(db)
-		for k, v in pairs(DEFAULTS) do db[k] = v end
+		InitDb()
+		EnsureWindows()
 		ApplyLanguage()
 		Print(L.MSG_DEFAULTS)
 	else

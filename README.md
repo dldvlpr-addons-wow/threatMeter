@@ -16,9 +16,15 @@ Copier le dossier dans `World of Warcraft/_classic_beta_/Interface/AddOns/Foreve
 
 ## Fonctions
 - Modes : dégâts, soins, absorptions, dégâts subis, interruptions, dissipations, morts, menace.
+- Jusqu'à 4 fenêtres, chacune avec son mode, sa session et sa position (dégâts et soins côte à côte, par exemple).
+  Menu → **Nouvelle fenêtre** / **Fermer cette fenêtre**, ou `/fm windows 2`.
 - Sessions : combat actuel, global, ou n'importe quel combat conservé par le client.
-- Bouton **Menu** (ou clic droit sur le titre) : choix du mode et de la session. Bouton **Reset** : remise à zéro.
-- Clic sur une barre : détail par sort (icône, total, par seconde). Molette : défilement.
+- Bouton **Menu** (ou clic droit sur le titre) : mode, session, verrou, fenêtres. Bouton **Reset** : remise à zéro.
+- Survol d'une barre : top 5 des sorts de la source. Clic : détail par sort (icône, total, par seconde). Molette : défilement.
+- Icône de spécialisation fournie par le client quand elle existe, sinon icône de classe.
+- Dégâts subis : le détail par sort indique la créature qui l'a lancé.
+- Morts : instant de la mort sur la barre, derniers coups reçus (recap de mort du client) au survol.
+- Bouton dans le compartiment d'addons (à côté de la minimap) pour afficher ou masquer les fenêtres.
 - Menace : alerte visuelle et sonore au-dessus d'un seuil réglable (`/fm warn 90`).
 - Rapport en chat (`/fm report 5`) : raid, groupe ou say selon le contexte.
 - 11 langues (`Locale/`) : enUS, frFR, deDE, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW.
@@ -28,16 +34,20 @@ Copier le dossier dans `World of Warcraft/_classic_beta_/Interface/AddOns/Foreve
 ```
 /fm mode <damage|heal|absorbs|taken|interrupts|dispels|deaths|threat>
 /fm report [N] | reset | lock | unlock | toggle
-/fm scale <x> | rows <n> | width <px> | warn <%> | sound | pets | defaults
+/fm windows <1-4> | scale <x> | rows <n> | width <px> | warn <%> | sound | pets | defaults
 /fm lang [auto|enUS|frFR|deDE|esES|esMX|itIT|ptBR|ruRU|koKR|zhCN|zhTW]
 /fm debug   (valeurs brutes de C_DamageMeter, pour diagnostiquer un affichage)
 ```
+`mode`, `report` et `debug` agissent sur la première fenêtre ; les autres se règlent par leur menu.
 
 ## Vérification hors jeu
 ```
 lua selfcheck.lua
+lua uicheck.lua
 ```
-Teste la logique pure (formatage, tri de la menace, seuil d'alerte).
+`selfcheck.lua` teste la logique pure (formatage, tri de la menace, recap de mort, configuration des fenêtres).
+`uicheck.lua` exécute la partie interface sur un faux client (chargement, migration des réglages, fenêtres,
+menu, tooltip, détail, commandes, valeurs secrètes en combat).
 
 ## Licence
 GPL-3.0-or-later (voir `LICENSE`).

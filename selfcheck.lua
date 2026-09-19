@@ -28,6 +28,27 @@ assert(t[1].name == "Tank" and t[2].name == "Alice" and t[3].name == "Bob")
 assert(FM.ShouldWarn({ tanking = false, pct = 92 }, 90) and not FM.ShouldWarn({ tanking = true, pct = 100 }, 90))
 assert(FM.ComputeTps({ v = 100, t = 10 }, 300, 12) == 100 and FM.ComputeTps({ v = 300, t = 10 }, 100, 12) == 0)
 
+-- Recap de mort : derniers événements, du plus ancien au plus récent, temps relatif au dernier coup.
+local recap = FM.RecapLines({
+	{ spellId = 1, amount = 500, timestamp = 10, currentHP = 2000 },
+	{ spellName = "Frappe", sourceName = "Ogre", amount = 1500, overkill = 200, timestamp = 12.5, currentHP = 0 },
+}, function(id) return "Sort" .. id end)
+assert(#recap == 2 and recap[1].left == "-2.5s  Sort1" and recap[1].right == "-500  2.0k", recap[1].left .. " | " .. recap[1].right)
+assert(recap[2].left == "0.0s  Frappe (Ogre)" and recap[2].right == "-1.5k  0")
+assert(#FM.RecapLines(nil) == 0 and #FM.RecapLines({}) == 0)
+local many = {}
+for i = 1, 10 do many[i] = { spellName = "S" .. i, amount = i, timestamp = i } end
+assert(#FM.RecapLines(many) == FM.RECAP_LINES and FM.RecapLines(many)[1].left == "-5.0s  S5")
+
+-- Fenêtres : la deuxième prend le mode opposé à la première et se pose sous la précédente.
+local w1 = FM.NewWindowConfig({}, 100)
+assert(w1.mode == "damage" and w1.view == "current" and w1.point[1] == "CENTER")
+local list = { { mode = "damage", view = "overall", point = { "TOPLEFT", nil, "TOPLEFT", 20, -30 } } }
+local w2 = FM.NewWindowConfig(list, 100)
+assert(w2.mode == "heal" and w2.view == "current" and w2.point[3] == "TOPLEFT" and w2.point[4] == 20 and w2.point[5] == -136)
+list[1].mode = "heal"
+assert(FM.NewWindowConfig(list, 100).mode == "damage")
+
 -- Langues : GetLocale absent hors client -> anglais ; changement sur place, clés complètes partout.
 assert(NS.L.MODE_DAMAGE == "Damage" and FM.MODE_INFO.damage.label == "Damage")
 assert(#FM.AvailableLocales() == 11 and FM.FindLocale("frfr") == "frFR" and FM.FindLocale("xx") == nil)
