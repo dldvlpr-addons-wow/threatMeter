@@ -12,6 +12,8 @@ local function Obj(kind)
 		if k == "SetText" then return function(self, v) self.text = v end end
 		if k == "GetText" then return function(self) return self.text end end
 		if k == "SetWidth" then return function(self, v) self.w = v end end
+		if k == "SetSize" then return function(self, w, h) self.w, self.h = w, h end end
+		if k == "GetEffectiveScale" then return function() return 1 end end
 		if k == "SetHeight" then return function(self, v) self.h = v end end
 		if k == "GetWidth" then return function(self) return self.w end end
 		if k == "GetHeight" then return function(self) return self.h end end
@@ -38,6 +40,8 @@ RAID_CLASS_COLORS = { WARRIOR = { r = 1, g = 0.5, b = 0 }, PRIEST = { r = 1, g =
 CLASS_ICON_TCOORDS = { WARRIOR = { 0, 0.25, 0, 0.25 }, PRIEST = { 0.5, 0.75, 0.25, 0.5 } }
 SOUNDKIT = { RAID_WARNING = 1 }
 GetLocale = function() return "frFR" end
+cursorX, cursorY = 0, 0
+GetCursorPosition = function() return cursorX, cursorY end
 GetTime = function() return os.clock() end
 PlaySound = function() end
 date = os.date
@@ -99,6 +103,7 @@ local NS = {}
 for _, code in ipairs({ "enUS", "frFR", "deDE", "esES", "esMX", "itIT", "ptBR", "ruRU", "koKR", "zhCN", "zhTW" }) do
 	assert(loadfile("Locale/" .. code .. ".lua"))("ForeverMeter", NS)
 end
+assert(loadfile("Mirror.lua"))("ForeverMeter", NS)
 assert(loadfile("ForeverMeter.lua"))("ForeverMeter", NS)
 local FM = ForeverMeter
 
@@ -114,6 +119,7 @@ NS = {}
 for _, code in ipairs({ "enUS", "frFR", "deDE", "esES", "esMX", "itIT", "ptBR", "ruRU", "koKR", "zhCN", "zhTW" }) do
 	assert(loadfile("Locale/" .. code .. ".lua"))("ForeverMeter", NS)
 end
+assert(loadfile("Mirror.lua"))("ForeverMeter", NS)
 assert(loadfile("ForeverMeter.lua"))("ForeverMeter", NS)
 FM = ForeverMeter
 for _, f in ipairs(created) do if f.scripts.OnEvent and f.scripts.OnUpdate then eventsFrame = f end end
@@ -217,16 +223,21 @@ w1.scripts.OnMouseWheel(w1, -1); assert(w1.scrollOffset == 0, "2 sources, 3 lign
 w1.header.scripts.OnDragStop(); assert(db.windows[1].point[4] == 10)
 
 -- Poignée : redimensionne la fenêtre 1 seule ; /fm rows remet la taille commune partout
-db.windows[1].locked = nil; w1.grip.scripts.OnMouseDown(); assert(w1.sizing)
-w1.w, w1.h = 333, 18 + 5 * 17 + 3 + 9 -- pendant le glissement : taille brute, barres replacées, frame non arrondie
-w1.scripts.OnSizeChanged(w1)
-assert(w1.w == 333 and w1.rows == 6 and db.windows[1].width == nil, "glissement : pas d'arrondi ni d'enregistrement")
-w1.w, w1.h = 320, 18 + 5 * 17 + 3
-w1.grip.scripts.OnMouseUp()
-assert(not w1.sizing and db.windows[1].width == 320 and db.windows[1].rows == 5, tostring(db.windows[1].rows))
+db.windows[1].locked = nil; w1.l, w1.t = 100, 500
+w1.grip.scripts.OnDragStart(); assert(w1.sizing and w1.point[1] == "TOPLEFT" and w1.point[4] == 100 and w1.point[5] == 500, "coin haut-gauche fixé")
+cursorX, cursorY = 433, 500 - (18 + 5 * 17 + 3 + 9) -- pendant le glissement : taille brute, barres replacées, frame non arrondie
+w1.grip.scripts.OnUpdate()
+assert(w1.w == 333 and w1.rows == 6 and db.windows[1].width == 333 and db.windows[1].rows == 6, "glissement : pas d'arrondi, taille enregistrée")
+cursorX, cursorY = 420, 500 - (18 + 5 * 17 + 3)
+w1.grip.scripts.OnUpdate()
+w1.grip.scripts.OnDragStop()
+assert(not w1.sizing and w1.grip.scripts.OnUpdate == nil and db.windows[1].width == 320 and db.windows[1].rows == 5, tostring(db.windows[1].rows))
 assert(w1.rows == 5 and w1.w == 320 and w2.rows == db.rows and w2.w == db.width, "fenêtre 2 inchangée")
 assert(ForeverMeterDetailFrame.w == 320 and ForeverMeterDetailFrame.rows == 5, "détail à la taille du propriétaire")
-db.windows[1].locked = true; w1.grip.scripts.OnMouseDown(); assert(not w1.sizing, "verrouillée : pas de redimensionnement"); w1.header.scripts.OnDragStart(); assert(w1.cfg.anchor == nil or true); w1.lockButton.scripts.OnClick(); assert(not db.windows[1].locked, "cadenas")
+db.windows[1].locked = true; w1.grip.scripts.OnDragStart(); assert(not w1.sizing, "verrouillée : pas de redimensionnement"); w1.header.scripts.OnDragStart(); assert(w1.cfg.anchor == nil or true); w1.lockButton.scripts.OnClick(); assert(not db.windows[1].locked, "cadenas")
+cursorX, cursorY = 100 + 40, 500 - 5 -- butées : largeur 150 minimum, 1 ligne minimum
+w1.grip.scripts.OnDragStart(); w1.grip.scripts.OnUpdate(); w1.grip.scripts.OnDragStop()
+assert(db.windows[1].width == 150 and db.windows[1].rows == 1, "butées min")
 slash("rows 4"); assert(db.windows[1].rows == nil and w1.rows == 4 and w2.rows == 4)
 slash("width 260"); assert(db.windows[1].width == nil and w1.w == 260)
 
@@ -281,4 +292,32 @@ Fire("ADDON_LOADED", "ForeverMeter")
 assert(#db.windows == 4, #db.windows)
 for i = 1, 4 do assert(_G["ForeverMeterFrame" .. (i == 1 and "" or i)].shown, "fenêtre " .. i .. " masquée") end
 assert(w1.rows == 26 and w1.w == 152 and ForeverMeterFrame2.rows == 10 and ForeverMeterFrame4.title.text:find("Absorptions"))
+
+-- Doubles des réglages (WoW Forever ne relit pas les SavedVariables) : table hôte Blizzard puis CVars.
+local cvars = {}
+g_addonCategoriesCollapsed = {}
+C_CVar = {
+	RegisterCVar = function(name, default) if cvars[name] == nil then cvars[name] = tostring(default) end end,
+	GetCVar = function(name) return cvars[name] end,
+	SetCVar = function(name, value) if cvars[name] == nil then return false end cvars[name] = tostring(value) return true end,
+}
+db.forbidden[1] = "ligne de journal"
+assert(NS.Mirror:Flush(), "écriture du miroir")
+assert(cvars.ForeverMeterMirror1:find("windows.#4.mode=sabsorbs", 1, true), cvars.ForeverMeterMirror1)
+assert(not cvars.ForeverMeterMirror1:find("forbidden", 1, true), "journal exclu du miroir")
+assert(not cvars.ForeverMeterMirror1:find("warnPct", 1, true), "défaut exclu du miroir")
+wipe(ForeverMeterDB)
+Fire("ADDON_LOADED", "ForeverMeter")
+db = ForeverMeterDB
+assert(#db.windows == 4 and db.windows[4].mode == "absorbs" and db.windows[1].rows == 26, "réglages restaurés depuis le miroir")
+assert(db.windows[3].point[4] == 151.9 and db.windows[3].point[2] == nil, "position restaurée, trou nil conservé")
+assert(db.warnPct == 90 and db.forbidden, "défauts et journal recréés")
+assert(g_addonCategoriesCollapsed.ForeverMeter == ForeverMeterDB, "table hôte : même table que ForeverMeterDB")
+-- Table hôte prioritaire sur le miroir CVar, SavedVariables prioritaire sur tout.
+g_addonCategoriesCollapsed.ForeverMeter = { windows = { { mode = "threat", view = "current" } } }
+wipe(ForeverMeterDB)
+Fire("ADDON_LOADED", "ForeverMeter")
+db = ForeverMeterDB
+assert(#db.windows == 1 and db.windows[1].mode == "threat", "réglages restaurés depuis la table hôte")
+assert(g_addonCategoriesCollapsed.ForeverMeter == ForeverMeterDB, "table hôte = table active")
 print("uicheck OK")

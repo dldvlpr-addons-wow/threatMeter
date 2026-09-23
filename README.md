@@ -53,7 +53,12 @@ lua uicheck.lua
 ```
 `selfcheck.lua` teste la logique pure (formatage, tri de la menace, recap de mort, configuration des fenêtres).
 `uicheck.lua` exécute la partie interface sur un faux client (chargement, migration des réglages, fenêtres,
-menu, tooltip, détail, commandes, valeurs secrètes en combat).
+menu, tooltip, détail, commandes, valeurs secrètes en combat, miroir CVar des réglages).
+
+WoW Forever 1.60 écrit les SavedVariables de compte mais ne les relit pas. Les réglages sont donc doublés
+(`Mirror.lua`) : table rangée dans `g_addonCategoriesCollapsed` (sauvegarde de Blizzard_AddOnList,
+`WTF/SavedVariables/`, relue au démarrage) et recopiée dans des CVars `ForeverMeterMirror1..8` (survivent au
+`/reload`). Si la sauvegarde revient vide, ces doubles la remplacent.
 
 ## Licence
 GPL-3.0-or-later (voir `LICENSE`).

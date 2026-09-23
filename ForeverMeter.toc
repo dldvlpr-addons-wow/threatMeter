@@ -1,7 +1,7 @@
 ## Interface: 16001, 11509, 11600, 20506, 30405, 40402, 50504, 120100
 ## Title: ForeverMeter
 ## Notes: Dégâts, soins, dégâts subis et menace. Jusqu'à 4 fenêtres, segments par combat, détail par sort, recap de mort, rapport en chat. /fm
-## Version: 1.3.0
+## Version: 1.4.0
 ## SavedVariables: ForeverMeterDB
 ## Category: Combat
 ## IconTexture: Interface\Icons\Ability_Warrior_Rampage
@@ -18,4 +18,5 @@ Locale\ruRU.lua
 Locale\koKR.lua
 Locale\zhCN.lua
 Locale\zhTW.lua
+Mirror.lua
 ForeverMeter.lua

@@ -430,6 +430,9 @@ local function MakeWindow(name, w, h)
 	f:SetSize(w, h)
 	f:SetClampedToScreen(true)
 	f:SetMovable(true)
+	-- Frame nommée : StopMovingOrSizing la marque « placée par l'utilisateur » et le client restaure alors sa
+	-- taille depuis layout-local.txt après ADDON_LOADED, sans passer par Layout() : le cadre et les barres divergent.
+	f:SetUserPlaced(false)
 	f:EnableMouse(true)
 	f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
 	f:SetBackdropColor(0, 0, 0, 0.6)
@@ -926,6 +929,7 @@ local function NewWindow(i)
 	end)
 	f.header:SetScript("OnDragStop", function()
 		f:StopMovingOrSizing()
+		f:SetUserPlaced(false)
 		f.OnMoved()
 		TrySnap(f)
 		Layout()
@@ -939,48 +943,54 @@ local function NewWindow(i)
 		Refresh()
 	end)
 	-- Poignée en bas à droite : glisser règle largeur et nombre de lignes de cette fenêtre seule.
-	f:SetResizable(true)
-	if f.SetResizeBounds then
-		f:SetResizeBounds(150, WindowHeight(1), 600, WindowHeight(40))
-	elseif f.SetMinResize then
-		f:SetMinResize(150, WindowHeight(1))
-		f:SetMaxResize(600, WindowHeight(40))
-	end
+	-- Redimensionnement à la main (OnUpdate + GetCursorPosition) entre OnDragStart et OnDragStop : sur ce client,
+	-- StartSizing ne déclenche ni OnSizeChanged ni OnMouseUp, et IsMouseButtonDown répond « relâché » pendant le
+	-- glissement ; seuls les événements de drag (ceux du titre) sont fiables.
 	f.grip = CreateFrame("Button", nil, f)
 	f.grip:SetSize(12, 12)
+	f.grip:RegisterForDrag("LeftButton")
 	f.grip:SetPoint("BOTTOMRIGHT", -1, 1)
 	f.grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
 	f.grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
-	f.grip:SetScript("OnMouseDown", function()
-		if f.cfg.locked then return end
-		f.sizing = true
-		f:StartSizing("BOTTOMRIGHT")
-	end)
-	f.grip:SetScript("OnMouseUp", function()
-		if not f.sizing then return end
-		f.sizing = nil
-		f:StopMovingOrSizing()
-		f.OnMoved()
-		f.OnResized()
-	end)
-	-- Taille lue sur la frame -> largeur et lignes de cette fenêtre.
-	local function SizeToConfig()
-		return math.max(150, math.min(600, math.floor(f:GetWidth() + 0.5))),
-			math.max(1, math.min(40, math.floor((f:GetHeight() - 21) / (db.rowHeight + 1) + 0.5)))
+	-- Taille (largeur, hauteur en px) -> largeur et lignes de cette fenêtre.
+	local function SizeToConfig(w, h)
+		return math.max(150, math.min(600, math.floor(w + 0.5))),
+			math.max(1, math.min(40, math.floor((h - 21) / (db.rowHeight + 1) + 0.5)))
 	end
-	-- Relâchement : la taille est arrondie à un nombre entier de lignes et enregistrée.
+	-- Relâchement : la taille suivie pendant le glissement est arrondie à un nombre entier de lignes.
 	f.OnResized = function()
-		f.cfg.width, f.cfg.rows = SizeToConfig()
 		Layout()
 		Refresh()
 	end
-	-- Pendant le glissement, la frame suit la souris (StartSizing) : on ne fait que replacer les barres dedans.
-	f:SetScript("OnSizeChanged", function()
+	local function StopSizing()
 		if not f.sizing then return end
-		local _, rows = SizeToConfig()
-		LayoutBars(f, rows, f:GetWidth())
+		f.sizing = nil
+		f.grip:SetScript("OnUpdate", nil)
+		f.OnMoved()
+		f.OnResized()
+	end
+	-- À chaque image pendant le glissement : coin bas-droit sous le curseur, coin haut-gauche fixe, barres replacées,
+	-- taille enregistrée tout de suite (une déconnexion en plein glissement garde la dernière taille vue).
+	local function FollowCursor()
+		local x, y = GetCursorPosition()
+		local scale = f:GetEffectiveScale()
+		local w = math.max(150, math.min(600, x / scale - f:GetLeft()))
+		local h = math.max(WindowHeight(1), math.min(WindowHeight(40), f:GetTop() - y / scale))
+		f.cfg.width, f.cfg.rows = SizeToConfig(w, h)
+		f:SetSize(w, h)
+		LayoutBars(f, f.cfg.rows, w)
 		Refresh()
+	end
+	f.grip:SetScript("OnDragStart", function()
+		if f.cfg.locked then return end
+		f.sizing = true
+		-- Coin haut-gauche fixé en absolu : l'ancre CENTER enregistrée ferait bouger la fenêtre en grandissant.
+		local left, top = f:GetLeft(), f:GetTop()
+		f:ClearAllPoints()
+		f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+		f.grip:SetScript("OnUpdate", FollowCursor)
 	end)
+	f.grip:SetScript("OnDragStop", StopSizing)
 	for b = 1, 40 do
 		local bar = MakeBar(f, b)
 		bar.win = f
@@ -1067,9 +1077,12 @@ Register(events, "DAMAGE_METER_RESET")
 events:SetScript("OnEvent", function(_, event, arg1)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
-		ForeverMeterDB = ForeverMeterDB or {}
+		-- WoW Forever ne relit pas la SavedVariables de compte : Mirror.lua fournit les replis.
+		ForeverMeterDB = NS.Mirror:Load(ForeverMeterDB) or {}
 		db = ForeverMeterDB
 		InitDb()
+		NS.Mirror.IGNORE.forbidden = true   -- journal de diagnostic, recréé à chaque session
+		NS.Mirror:Watch(db, DEFAULTS)
 		EnsureWindows()
 		ApplyLanguage()
 		Layout()
