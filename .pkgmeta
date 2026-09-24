@@ -4,3 +4,4 @@ ignore:
   - selfcheck.lua
   - uicheck.lua
   - "*.zip"
+  - wiki

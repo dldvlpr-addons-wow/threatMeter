@@ -3,8 +3,6 @@
 Damage, healing, damage taken and threat meter for **WoW Forever** (client 1.60, 12.x engine).
 Single Lua file, no dependencies (no Details, no Ace, no LibStub). A lightweight alternative to Details.
 
-French version: [README.fr.md](README.fr.md).
-
 ## Why a dedicated meter
 On this engine, `COMBAT_LOG_EVENT_UNFILTERED` is forbidden to addons (ADDON_ACTION_FORBIDDEN popup).
 Data comes from `C_DamageMeter`, Blizzard's server-side meter. In combat, names, amounts and GUIDs
