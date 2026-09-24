@@ -1,0 +1,6 @@
+package-as: ForeverMeter
+
+ignore:
+  - selfcheck.lua
+  - uicheck.lua
+  - "*.zip"
