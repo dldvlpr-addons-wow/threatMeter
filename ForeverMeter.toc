@@ -3,7 +3,7 @@
 ## Notes: Dégâts, soins, dégâts subis et menace. Jusqu'à 4 fenêtres, segments par combat, détail par sort, recap de mort, rapport en chat. /fm
 ## Version: 1.4.0
 ## X-Curse-Project-ID: 1701641
-## X-Wago-ID: 
+## X-Wago-ID: j6jAzxNR
 ## SavedVariables: ForeverMeterDB
 ## Category: Combat
 ## IconTexture: Interface\Icons\Ability_Warrior_Rampage
