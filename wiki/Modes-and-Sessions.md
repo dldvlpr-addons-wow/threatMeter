@@ -1,5 +1,7 @@
 # Modes and Sessions
 
+[Home](README.md) · [Getting Started](Getting-Started.md) · [Windows](Windows.md) · [Modes and Sessions](Modes-and-Sessions.md) · [Commands](Commands.md) · [FAQ](FAQ.md)
+
 ## Modes
 | Mode | Shows |
 |---|---|

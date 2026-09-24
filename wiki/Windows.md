@@ -1,5 +1,7 @@
 # Windows
 
+[Home](README.md) · [Getting Started](Getting-Started.md) · [Windows](Windows.md) · [Modes and Sessions](Modes-and-Sessions.md) · [Commands](Commands.md) · [FAQ](FAQ.md)
+
 ## Several windows
 You can open up to 4 windows. Each one keeps its own mode, session, position and size,
 so you can show damage and healing side by side.

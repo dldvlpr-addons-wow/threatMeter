@@ -1,13 +1,15 @@
 # ForeverMeter
 
+[Home](README.md) · [Getting Started](Getting-Started.md) · [Windows](Windows.md) · [Modes and Sessions](Modes-and-Sessions.md) · [Commands](Commands.md) · [FAQ](FAQ.md)
+
 Lightweight damage, healing, damage taken and threat meter for **WoW Forever** (client 1.60, 12.x engine).
 Single Lua file, no dependencies.
 
-- [[Getting Started|Getting-Started]]: installation and first steps
-- [[Windows]]: multiple windows, snapping, sizing, locking
-- [[Modes and Sessions|Modes-and-Sessions]]: what each mode shows
-- [[Commands]]: full `/fm` reference
-- [[FAQ]]: known limits and troubleshooting
+- [Getting Started](Getting-Started.md): installation and first steps
+- [Windows](Windows.md): multiple windows, snapping, sizing, locking
+- [Modes and Sessions](Modes-and-Sessions.md): what each mode shows
+- [Commands](Commands.md): full `/fm` reference
+- [FAQ](FAQ.md): known limits and troubleshooting
 
 ## Features
 - 8 modes: damage, healing, absorbs, damage taken, interrupts, dispels, deaths, threat.

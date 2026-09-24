@@ -1,5 +1,7 @@
 # Commands
 
+[Home](README.md) · [Getting Started](Getting-Started.md) · [Windows](Windows.md) · [Modes and Sessions](Modes-and-Sessions.md) · [Commands](Commands.md) · [FAQ](FAQ.md)
+
 `/fm` and `/forevermeter` both work. Type `/fm` alone to see the help in game.
 
 | Command | Effect |

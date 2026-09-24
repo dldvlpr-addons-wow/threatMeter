@@ -1,5 +1,7 @@
 # FAQ
 
+[Home](README.md) · [Getting Started](Getting-Started.md) · [Windows](Windows.md) · [Modes and Sessions](Modes-and-Sessions.md) · [Commands](Commands.md) · [FAQ](FAQ.md)
+
 ## Why not use the combat log like Details?
 On WoW Forever, `COMBAT_LOG_EVENT_UNFILTERED` is forbidden to addons (ADDON_ACTION_FORBIDDEN popup).
 ForeverMeter reads `C_DamageMeter`, Blizzard's server-side meter, and `UnitDetailedThreatSituation` for threat.
