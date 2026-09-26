@@ -1,7 +1,13 @@
 -- Locale/zhCN.lua
+<<<<<<< HEAD
 if GetLocale() ~= "zhCN" then return end
 local _, NS = ...
 local L = NS.L
+=======
+local _, NS = ...
+local L = {}
+NS.Locales.zhCN = L
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.MODE_DAMAGE = "伤害"
 L.MODE_HEAL = "治疗"
 L.MODE_ABSORBS = "吸收"
@@ -35,9 +41,27 @@ L.MSG_WARN = "仇恨警报阈值 %d%%"
 L.MSG_SOUND = "声音 %s"
 L.MSG_PETS = "仇恨视图中的宠物 %s"
 L.MSG_DEFAULTS = "设置已重置"
+<<<<<<< HEAD
+=======
+L.MSG_LANG = "语言：%s"
+L.MSG_LANG_LIST = "可用语言：%s（auto = 游戏客户端语言）"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.WORD_ON = "开"
 L.WORD_OFF = "关"
 L.WORD_SHOWN = "显示"
 L.WORD_HIDDEN = "隐藏"
+<<<<<<< HEAD
 L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
 L.HELP_2 = "菜单 按钮或右键标题：选择模式和会话。重置按钮：清空。点击条目 = 按法术查看详情。滚轮 = 滚动。"
+=======
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults"
+L.HELP_2 = "菜单 按钮或右键标题：选择模式和会话。重置按钮：清空。点击条目 = 按法术查看详情。滚轮 = 滚动。 右下角拖柄 = 调整大小。"
+L.MENU_WINDOWS = "窗口"
+L.MENU_LOCK = "锁定位置"
+L.MENU_NEW_WINDOW = "新建窗口"
+L.MENU_CLOSE_WINDOW = "关闭此窗口"
+L.TIP_NO_RECAP = "无死亡回顾"
+L.TIP_CLICK = "点击：按法术查看详情"
+L.MSG_WINDOWS = "%d 个窗口"
+L.MSG_REFRESH = "每 %.2f 秒刷新"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead

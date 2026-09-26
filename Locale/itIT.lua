@@ -1,7 +1,13 @@
 -- Locale/itIT.lua
+<<<<<<< HEAD
 if GetLocale() ~= "itIT" then return end
 local _, NS = ...
 local L = NS.L
+=======
+local _, NS = ...
+local L = {}
+NS.Locales.itIT = L
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.MODE_DAMAGE = "Danni"
 L.MODE_HEAL = "Cure"
 L.MODE_ABSORBS = "Assorbimenti"
@@ -35,9 +41,27 @@ L.MSG_WARN = "avviso minaccia al %d%%"
 L.MSG_SOUND = "suono %s"
 L.MSG_PETS = "famigli nella vista minaccia %s"
 L.MSG_DEFAULTS = "impostazioni ripristinate"
+<<<<<<< HEAD
+=======
+L.MSG_LANG = "lingua: %s"
+L.MSG_LANG_LIST = "lingue: %s (auto = lingua del client)"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.WORD_ON = "attivo"
 L.WORD_OFF = "disattivo"
 L.WORD_SHOWN = "mostrati"
 L.WORD_HIDDEN = "nascosti"
+<<<<<<< HEAD
 L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
 L.HELP_2 = "Pulsante Menu o clic destro sul titolo: scegli modalità e sessione. Pulsante Reset: azzera. Clic su una barra = dettaglio per incantesimo. Rotellina = scorri."
+=======
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults"
+L.HELP_2 = "Pulsante Menu o clic destro sul titolo: scegli modalità e sessione. Pulsante Reset: azzera. Clic su una barra = dettaglio per incantesimo. Rotellina = scorri. Maniglia in basso a destra = ridimensiona."
+L.MENU_WINDOWS = "Finestre"
+L.MENU_LOCK = "Blocca posizione"
+L.MENU_NEW_WINDOW = "Nuova finestra"
+L.MENU_CLOSE_WINDOW = "Chiudi questa finestra"
+L.TIP_NO_RECAP = "nessun riepilogo della morte disponibile"
+L.TIP_CLICK = "Clic: dettaglio per incantesimo"
+L.MSG_WINDOWS = "%d finestra/e"
+L.MSG_REFRESH = "aggiornamento ogni %.2f s"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead

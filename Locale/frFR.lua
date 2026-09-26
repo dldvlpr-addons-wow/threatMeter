@@ -1,7 +1,13 @@
 -- Locale/frFR.lua
+<<<<<<< HEAD
 if GetLocale() ~= "frFR" then return end
 local _, NS = ...
 local L = NS.L
+=======
+local _, NS = ...
+local L = {}
+NS.Locales.frFR = L
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.MODE_DAMAGE = "Dégâts"
 L.MODE_HEAL = "Soins"
 L.MODE_ABSORBS = "Absorptions"
@@ -35,9 +41,27 @@ L.MSG_WARN = "alerte menace à %d%%"
 L.MSG_SOUND = "son %s"
 L.MSG_PETS = "familiers en menace %s"
 L.MSG_DEFAULTS = "réglages remis à zéro"
+<<<<<<< HEAD
+=======
+L.MSG_LANG = "langue : %s"
+L.MSG_LANG_LIST = "langues : %s (auto = langue du client)"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.WORD_ON = "activé"
 L.WORD_OFF = "désactivé"
 L.WORD_SHOWN = "affichés"
 L.WORD_HIDDEN = "masqués"
+<<<<<<< HEAD
 L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
 L.HELP_2 = "Bouton Menu ou clic droit sur le titre : choix du mode et de la session. Bouton Reset : remise à zéro. Clic sur une barre = détail par sort. Molette = défiler."
+=======
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults"
+L.HELP_2 = "Bouton Menu ou clic droit sur le titre : choix du mode et de la session. Bouton Reset : remise à zéro. Clic sur une barre = détail par sort. Molette = défiler. Poignée en bas à droite = redimensionner."
+L.MENU_WINDOWS = "Fenêtres"
+L.MENU_LOCK = "Verrouiller la position"
+L.MENU_NEW_WINDOW = "Nouvelle fenêtre"
+L.MENU_CLOSE_WINDOW = "Fermer cette fenêtre"
+L.TIP_NO_RECAP = "aucun récapitulatif de mort disponible"
+L.TIP_CLICK = "Clic : détail par sort"
+L.MSG_WINDOWS = "%d fenêtre(s)"
+L.MSG_REFRESH = "rafraîchissement toutes les %.2f s"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead

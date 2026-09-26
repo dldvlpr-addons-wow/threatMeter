@@ -1,7 +1,13 @@
 -- Locale/koKR.lua
+<<<<<<< HEAD
 if GetLocale() ~= "koKR" then return end
 local _, NS = ...
 local L = NS.L
+=======
+local _, NS = ...
+local L = {}
+NS.Locales.koKR = L
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.MODE_DAMAGE = "피해"
 L.MODE_HEAL = "치유"
 L.MODE_ABSORBS = "흡수"
@@ -35,9 +41,27 @@ L.MSG_WARN = "위협 경고 %d%%"
 L.MSG_SOUND = "소리 %s"
 L.MSG_PETS = "위협 보기에서 소환수 %s"
 L.MSG_DEFAULTS = "설정이 초기화되었습니다"
+<<<<<<< HEAD
+=======
+L.MSG_LANG = "언어: %s"
+L.MSG_LANG_LIST = "언어 목록: %s (auto = 게임 클라이언트 언어)"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.WORD_ON = "켜짐"
 L.WORD_OFF = "꺼짐"
 L.WORD_SHOWN = "표시"
 L.WORD_HIDDEN = "숨김"
+<<<<<<< HEAD
 L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
 L.HELP_2 = "메뉴 버튼 또는 제목 우클릭: 모드와 세션 선택. 초기화 버튼: 초기화. 막대 클릭 = 주문별 상세. 마우스 휠 = 스크롤."
+=======
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults"
+L.HELP_2 = "메뉴 버튼 또는 제목 우클릭: 모드와 세션 선택. 초기화 버튼: 초기화. 막대 클릭 = 주문별 상세. 마우스 휠 = 스크롤. 오른쪽 아래 손잡이 = 크기 조절."
+L.MENU_WINDOWS = "창"
+L.MENU_LOCK = "위치 고정"
+L.MENU_NEW_WINDOW = "새 창"
+L.MENU_CLOSE_WINDOW = "이 창 닫기"
+L.TIP_NO_RECAP = "죽음 요약 없음"
+L.TIP_CLICK = "클릭: 주문별 상세"
+L.MSG_WINDOWS = "창 %d개"
+L.MSG_REFRESH = "%.2f초마다 갱신"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead

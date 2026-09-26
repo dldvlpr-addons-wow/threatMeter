@@ -1,7 +1,13 @@
 -- Locale/zhTW.lua
+<<<<<<< HEAD
 if GetLocale() ~= "zhTW" then return end
 local _, NS = ...
 local L = NS.L
+=======
+local _, NS = ...
+local L = {}
+NS.Locales.zhTW = L
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.MODE_DAMAGE = "傷害"
 L.MODE_HEAL = "治療"
 L.MODE_ABSORBS = "吸收"
@@ -35,9 +41,27 @@ L.MSG_WARN = "威脅警報閾值 %d%%"
 L.MSG_SOUND = "聲音 %s"
 L.MSG_PETS = "威脅視圖中的寵物 %s"
 L.MSG_DEFAULTS = "設定已重置"
+<<<<<<< HEAD
+=======
+L.MSG_LANG = "語言：%s"
+L.MSG_LANG_LIST = "可用語言：%s（auto = 遊戲用戶端語言）"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.WORD_ON = "開"
 L.WORD_OFF = "關"
 L.WORD_SHOWN = "顯示"
 L.WORD_HIDDEN = "隱藏"
+<<<<<<< HEAD
 L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
 L.HELP_2 = "選單 按鈕或右鍵標題：選擇模式和會話。重置按鈕：清空。點擊條目 = 按法術查看詳情。滾輪 = 捲動。"
+=======
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults"
+L.HELP_2 = "選單 按鈕或右鍵標題：選擇模式和會話。重置按鈕：清空。點擊條目 = 按法術查看詳情。滾輪 = 捲動。 右下角拖柄 = 調整大小。"
+L.MENU_WINDOWS = "視窗"
+L.MENU_LOCK = "鎖定位置"
+L.MENU_NEW_WINDOW = "新增視窗"
+L.MENU_CLOSE_WINDOW = "關閉此視窗"
+L.TIP_NO_RECAP = "無死亡回顧"
+L.TIP_CLICK = "點擊：按法術查看詳情"
+L.MSG_WINDOWS = "%d 個視窗"
+L.MSG_REFRESH = "每 %.2f 秒刷新"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead

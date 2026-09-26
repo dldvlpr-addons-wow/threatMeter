@@ -1,7 +1,13 @@
 -- Locale/esES.lua
+<<<<<<< HEAD
 if GetLocale() ~= "esES" then return end
 local _, NS = ...
 local L = NS.L
+=======
+local _, NS = ...
+local L = {}
+NS.Locales.esES = L
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.MODE_DAMAGE = "Daño"
 L.MODE_HEAL = "Sanación"
 L.MODE_ABSORBS = "Absorciones"
@@ -35,9 +41,27 @@ L.MSG_WARN = "aviso de amenaza al %d%%"
 L.MSG_SOUND = "sonido %s"
 L.MSG_PETS = "mascotas en la vista de amenaza %s"
 L.MSG_DEFAULTS = "ajustes restablecidos"
+<<<<<<< HEAD
+=======
+L.MSG_LANG = "idioma: %s"
+L.MSG_LANG_LIST = "idiomas: %s (auto = idioma del cliente)"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.WORD_ON = "activado"
 L.WORD_OFF = "desactivado"
 L.WORD_SHOWN = "mostradas"
 L.WORD_HIDDEN = "ocultas"
+<<<<<<< HEAD
 L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
 L.HELP_2 = "Botón Menú o clic derecho en el título: elegir modo y sesión. Botón Reset: reiniciar. Clic en una barra = detalle por hechizo. Rueda del ratón = desplazar."
+=======
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults"
+L.HELP_2 = "Botón Menú o clic derecho en el título: elegir modo y sesión. Botón Reset: reiniciar. Clic en una barra = detalle por hechizo. Rueda del ratón = desplazar. Asa inferior derecha = redimensionar."
+L.MENU_WINDOWS = "Ventanas"
+L.MENU_LOCK = "Bloquear posición"
+L.MENU_NEW_WINDOW = "Nueva ventana"
+L.MENU_CLOSE_WINDOW = "Cerrar esta ventana"
+L.TIP_NO_RECAP = "sin resumen de muerte disponible"
+L.TIP_CLICK = "Clic: detalle por hechizo"
+L.MSG_WINDOWS = "%d ventana(s)"
+L.MSG_REFRESH = "actualización cada %.2f s"
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead

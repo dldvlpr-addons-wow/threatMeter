@@ -1,9 +1,20 @@
 ## Interface: 16001, 11509, 11600, 20506, 30405, 40402, 50504, 120100
 ## Title: ForeverMeter
+<<<<<<< HEAD
 ## Notes: Dégâts, soins, dégâts subis et menace. Segments par combat, détail par sort, rapport en chat. /fm
 ## Version: 1.0.0
 ## SavedVariables: ForeverMeterDB
 ## Category: Combat
+=======
+## Notes: Dégâts, soins, dégâts subis et menace. Jusqu'à 4 fenêtres, segments par combat, détail par sort, recap de mort, rapport en chat. /fm
+## Version: 1.4.0
+## X-Curse-Project-ID: 1701641
+## X-Wago-ID: j6jAzxNR
+## SavedVariables: ForeverMeterDB
+## Category: Combat
+## IconTexture: Interface\Icons\Ability_Warrior_Rampage
+## AddonCompartmentFunc: ForeverMeter_Toggle
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 
 Locale\enUS.lua
 Locale\frFR.lua
@@ -16,4 +27,8 @@ Locale\ruRU.lua
 Locale\koKR.lua
 Locale\zhCN.lua
 Locale\zhTW.lua
+<<<<<<< HEAD
+=======
+Mirror.lua
+>>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 ForeverMeter.lua
