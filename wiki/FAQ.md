@@ -19,6 +19,12 @@ If settings still reset, report it with your client version.
 ## The window is gone
 Type `/fm toggle`. If it is off screen, type `/fm defaults` to reset positions and settings.
 
+## A new texture or font does not show
+New media files are only picked up after restarting the game. `/reload` is not enough.
+
+## Why can't I compare players during combat?
+Other players' data is secret during combat. The comparison comes back once combat ends.
+
 ## A value looks wrong
 Type `/fm debug` and include the output when you report the issue.
 

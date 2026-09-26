@@ -12,9 +12,10 @@ Single Lua file, no dependencies.
 - [FAQ](FAQ.md): known limits and troubleshooting
 
 ## Features
-- 8 modes: damage, healing, absorbs, damage taken, interrupts, dispels, deaths, threat.
+- Up to 10 modes: damage, healing, absorbs, damage taken, enemy damage taken, avoidable damage taken, interrupts, dispels, deaths, threat.
 - Up to 4 windows, each with its own mode, session, position and size.
-- Per-spell breakdown, top 5 spells tooltip, death recap.
+- Per-spell breakdown, player comparison, top 5 spells tooltip, death recap.
+- Options panel, bar textures and fonts.
 - Threat warning (visual and sound) above an adjustable threshold.
 - Chat report to raid, party or say.
 - 11 languages: enUS, frFR, deDE, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW.

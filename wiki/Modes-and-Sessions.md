@@ -9,6 +9,8 @@
 | `heal` | Healing done |
 | `absorbs` | Damage absorbed by shields |
 | `taken` | Damage taken. The breakdown shows which creature cast each spell. |
+| `enemytaken` | Damage taken by enemies (only when the client provides it) |
+| `avoidable` | Avoidable damage taken (only when the client provides it). The breakdown shows which creature cast each spell. |
 | `interrupts` | Interrupts |
 | `dispels` | Dispels |
 | `deaths` | Deaths. The bar shows the time of death; hover it for the last hits taken. |

@@ -16,3 +16,4 @@ Install from CurseForge or Wago with your addon manager, or manually:
 - Click **Reset** to clear the data.
 - Hover a bar to see the top 5 spells of that player. Click it to open the per-spell breakdown.
 - Use the mouse wheel to scroll when there are more players than rows.
+- Type `/fm options` (or Options → AddOns → ForeverMeter) to change the bar texture, font, size and other settings.
