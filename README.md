@@ -3,6 +3,19 @@
 Damage, healing, damage taken and threat meter for **WoW Forever** (client 1.60, 12.x engine).
 Single Lua file, no dependencies.
 
+> **Warning: restart the game before launching ForeverMeter** after installing or updating it.
+> `/reload` is not enough: the game only loads new texture and font files at startup.
+
+## New in 1.5.0
+- **Options panel**: Options → AddOns → ForeverMeter, `/fm options`, or **Options** in a window menu.
+- **6 bar textures** and **6 bundled fonts**, plus the game fonts and LibSharedMedia media when available.
+- **Compare two players**: open a breakdown, then Shift-click another bar (out of combat).
+- **New modes**: enemy damage taken, avoidable damage taken.
+- **New windows** keep the size of their parent and never overlap another window.
+- **Breakdown** in its own movable panel. Resize grip in both bottom corners. Animated bars.
+
+See [CHANGELOG.md](CHANGELOG.md) for details.
+
 ## Why a dedicated meter
 On this engine, `COMBAT_LOG_EVENT_UNFILTERED` is forbidden to addons (ADDON_ACTION_FORBIDDEN popup).
 Data comes from `C_DamageMeter`, Blizzard's server-side meter. In combat, names, amounts and GUIDs
