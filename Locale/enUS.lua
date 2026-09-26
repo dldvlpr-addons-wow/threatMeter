@@ -1,15 +1,9 @@
 -- Locale/enUS.lua : base de repli, toujours chargée.
-<<<<<<< HEAD
--- Les autres fichiers de Locale/ surchargent ces clés quand GetLocale() correspond.
-local _, NS = ...
-NS.L = {
-=======
 -- Chaque fichier de Locale/ enregistre sa table dans NS.Locales ; ForeverMeter.lua applique l'anglais
 -- puis la langue choisie (/fm lang, sinon GetLocale()).
 local _, NS = ...
 NS.Locales = {}
 NS.Locales.enUS = {
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
     MODE_DAMAGE = "Damage",
     MODE_HEAL = "Healing",
     MODE_ABSORBS = "Absorbs",
@@ -18,6 +12,8 @@ NS.Locales.enUS = {
     MODE_DISPELS = "Dispels",
     MODE_DEATHS = "Deaths",
     MODE_THREAT = "Threat",
+    MODE_ENEMY_TAKEN = "Damage taken (enemies)",
+    MODE_AVOIDABLE = "Avoidable damage taken",
     FORBIDDEN = "function refused by the client: %s",
     UNKNOWN_EVENT = "unknown event ignored: %s",
     SESSION_OVERALL = "Overall",
@@ -43,20 +39,13 @@ NS.Locales.enUS = {
     MSG_SOUND = "sound %s",
     MSG_PETS = "pets in threat view %s",
     MSG_DEFAULTS = "settings reset to defaults",
-<<<<<<< HEAD
-=======
     MSG_LANG = "language: %s",
     MSG_LANG_LIST = "languages: %s (auto = game client language)",
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
     WORD_ON = "on",
     WORD_OFF = "off",
     WORD_SHOWN = "shown",
     WORD_HIDDEN = "hidden",
-<<<<<<< HEAD
-    HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults",
-    HELP_2 = "Menu button or right-click the title: choose mode and session. Reset button: clear. Click a bar = per-spell details. Mouse wheel = scroll.",
-=======
-    HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults",
+    HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | texture | font | lang | options | defaults",
     HELP_2 = "Menu button or right-click the title: choose mode and session. Reset button: clear. Click a bar = per-spell details. Mouse wheel = scroll. Bottom-right grip = resize.",
     MENU_WINDOWS = "Windows",
     MENU_LOCK = "Lock position",
@@ -64,7 +53,24 @@ NS.Locales.enUS = {
     MENU_CLOSE_WINDOW = "Close this window",
     TIP_NO_RECAP = "no death recap available",
     TIP_CLICK = "Click: per-spell details",
+    TIP_COMPARE = "Shift+click: compare with the open breakdown",
     MSG_WINDOWS = "%d window(s)",
     MSG_REFRESH = "refresh every %.2f s",
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
+    MSG_TEXTURE = "bar texture: %s",
+    MSG_TEXTURE_LIST = "textures: %s",
+    MSG_FONT = "bar font: %s, size %d",
+    MSG_FONT_LIST = "fonts: default, %s (/fm font <name> [size])",
+    MENU_OPTIONS = "Options",
+    OPT_TEXTURE = "Bar texture",
+    OPT_FONT = "Bar font",
+    OPT_FONT_SIZE = "Font size",
+    OPT_LANG = "Language",
+    OPT_SCALE = "Scale",
+    OPT_REFRESH = "Refresh (s)",
+    OPT_WARN = "Threat warning (%)",
+    OPT_SOUND = "Warning sound",
+    OPT_PETS = "Pets in threat view",
+    OPT_LOCK = "Lock windows",
+    OPT_DEFAULTS = "Reset settings",
+    OPT_DEFAULT = "Default",
 }

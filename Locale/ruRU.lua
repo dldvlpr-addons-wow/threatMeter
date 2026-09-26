@@ -1,13 +1,7 @@
 -- Locale/ruRU.lua
-<<<<<<< HEAD
-if GetLocale() ~= "ruRU" then return end
-local _, NS = ...
-local L = NS.L
-=======
 local _, NS = ...
 local L = {}
 NS.Locales.ruRU = L
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.MODE_DAMAGE = "Урон"
 L.MODE_HEAL = "Исцеление"
 L.MODE_ABSORBS = "Поглощение"
@@ -41,20 +35,13 @@ L.MSG_WARN = "предупреждение об угрозе при %d%%"
 L.MSG_SOUND = "звук %s"
 L.MSG_PETS = "питомцы в режиме угрозы %s"
 L.MSG_DEFAULTS = "настройки сброшены"
-<<<<<<< HEAD
-=======
 L.MSG_LANG = "язык: %s"
 L.MSG_LANG_LIST = "языки: %s (auto = язык клиента)"
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.WORD_ON = "вкл"
 L.WORD_OFF = "выкл"
 L.WORD_SHOWN = "показаны"
 L.WORD_HIDDEN = "скрыты"
-<<<<<<< HEAD
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
-L.HELP_2 = "Кнопка Меню или ПКМ по заголовку: выбор режима и сессии. Кнопка Сброс: очистить. Клик по полосе = детали по заклинаниям. Колесо мыши = прокрутка."
-=======
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | texture | font | lang | options | defaults"
 L.HELP_2 = "Кнопка Меню или ПКМ по заголовку: выбор режима и сессии. Кнопка Сброс: очистить. Клик по полосе = детали по заклинаниям. Колесо мыши = прокрутка. Уголок справа внизу = изменить размер."
 L.MENU_WINDOWS = "Окна"
 L.MENU_LOCK = "Закрепить положение"
@@ -64,4 +51,23 @@ L.TIP_NO_RECAP = "сводка смерти недоступна"
 L.TIP_CLICK = "Клик: детали по заклинаниям"
 L.MSG_WINDOWS = "окон: %d"
 L.MSG_REFRESH = "обновление каждые %.2f с"
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
+L.MSG_TEXTURE = "текстура полос: %s"
+L.MSG_TEXTURE_LIST = "текстуры: %s"
+L.MSG_FONT = "шрифт полос: %s, размер %d"
+L.MSG_FONT_LIST = "шрифты: default, %s (/fm font <имя> [размер])"
+L.MENU_OPTIONS = "Настройки"
+L.OPT_TEXTURE = "Текстура полос"
+L.OPT_FONT = "Шрифт полос"
+L.OPT_FONT_SIZE = "Размер шрифта"
+L.OPT_LANG = "Язык"
+L.OPT_SCALE = "Масштаб"
+L.OPT_REFRESH = "Обновление (с)"
+L.OPT_WARN = "Предупреждение об угрозе (%)"
+L.OPT_SOUND = "Звук предупреждения"
+L.OPT_PETS = "Питомцы в режиме угрозы"
+L.OPT_LOCK = "Закрепить окна"
+L.OPT_DEFAULTS = "Настройки по умолчанию"
+L.OPT_DEFAULT = "По умолчанию"
+L.MODE_ENEMY_TAKEN = "Полученный урон (враги)"
+L.MODE_AVOIDABLE = "Полученный избегаемый урон"
+L.TIP_COMPARE = "Shift+клик: сравнить с открытой детализацией"

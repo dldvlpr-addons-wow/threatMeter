@@ -23,6 +23,7 @@ local function Obj(kind)
 		if k == "GetBottom" then return function(self) return (self.t or 0) - (self.h or 100) end end
 		if k == "SetPoint" then return function(self, ...) self.point = { ... } end end
 		if k == "GetNormalTexture" then return function(self) self.tex = self.tex or Obj("Texture"); return self.tex end end
+		if k == "GetHighlightTexture" then return function(self) self.hl = self.hl or Obj("Texture"); return self.hl end end
 		if k == "GetPoint" then return function() return "CENTER", nil, "CENTER", 10, 20 end end
 		if k == "CreateTexture" or k == "CreateFontString" then return function() return Obj(k) end end
 		if k == "RegisterEvent" then return function(self, e) if e == "BOGUS" then error("unknown event") end end end
@@ -33,7 +34,7 @@ local function Obj(kind)
 	end })
 end
 CreateFrame = function(kind, name) local f = Obj(kind); f.name = name; if name then _G[name] = f end; return f end
-UIParent = Obj("Frame")
+UIParent = Obj("Frame"); UIParent.w, UIParent.h = 1920, 1080
 GameTooltip = Obj("GameTooltip")
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) print("  chat> " .. m) end }
 RAID_CLASS_COLORS = { WARRIOR = { r = 1, g = 0.5, b = 0 }, PRIEST = { r = 1, g = 1, b = 1 } }
@@ -55,6 +56,8 @@ UnitAffectingCombat = function() return false end
 UnitCanAttack = function() return true end
 UnitIsDead = function() return false end
 UnitIsUnit = function(a, b) return a == b end
+shiftDown = false
+IsShiftKeyDown = function() return shiftDown end
 UnitDetailedThreatSituation = function(u) return u == "player", 3, 95, 95, 1000 end
 IsInRaid = function() return false end
 IsInGroup = function() return true end
@@ -99,6 +102,8 @@ C_DeathRecap = {
 	GetRecapEvents = function() return { { spellId = 5, amount = 900, timestamp = 40, currentHP = 100, sourceName = "Ogre" }, { spellName = "Frappe", amount = 200, timestamp = 42, currentHP = 0 } } end,
 }
 
+-- Types de meter connus du client : les modes « ennemis » et « évitables » n apparaissent que s ils existent.
+Enum = { DamageMeterType = { EnemyDamageTaken = 10, AvoidableDamageTaken = 8 } }
 local NS = {}
 for _, code in ipairs({ "enUS", "frFR", "deDE", "esES", "esMX", "itIT", "ptBR", "ruRU", "koKR", "zhCN", "zhTW" }) do
 	assert(loadfile("Locale/" .. code .. ".lua"))("ForeverMeter", NS)
@@ -106,6 +111,7 @@ end
 assert(loadfile("Mirror.lua"))("ForeverMeter", NS)
 assert(loadfile("ForeverMeter.lua"))("ForeverMeter", NS)
 local FM = ForeverMeter
+assert(FM.MODES[5] == "enemytaken" and FM.MODES[6] == "avoidable" and FM.MODE_INFO.avoidable.type == 8 and FM.MODE_INFO.enemytaken.label == "Dégâts subis (ennemis)", "modes lus dans Enum")
 
 -- Chargement : trouve la frame d'événements (celle qui a ADDON_LOADED dans OnEvent) via le script OnUpdate.
 ForeverMeterDB = { mode = "heal", point = { "TOPLEFT", nil, "TOPLEFT", 5, -5 }, locked = true }
@@ -143,6 +149,7 @@ eventsFrame.scripts.OnUpdate(eventsFrame, 1)
 
 -- Commandes
 local slash = SlashCmdList.FOREVERMETER
+w1.l, w1.t = 100, 900 -- position réaliste : la place libre se calcule depuis les coins des fenêtres
 slash("windows 3")
 assert(#db.windows == 3 and ForeverMeterFrame2 and ForeverMeterFrame3 and ForeverMeterFrame3.shown)
 assert(db.windows[2].mode == "damage" and db.windows[2].point[5] < db.windows[1].point[5], "2e fenêtre : mode opposé, posée dessous")
@@ -162,6 +169,9 @@ slash("lang enUS")
 assert(w1.title.text:find("Deaths") and w1.resetButton.text == "Reset" and ForeverMeterFrame2.menuButton.text == "Menu")
 slash("lang auto")
 slash("refresh 0.1"); assert(db.refresh == 0.1); slash("refresh 9"); assert(db.refresh == 2); slash("refresh 0.2"); slash("rows 3"); slash("width 300"); slash("scale 1.2"); slash("warn 80"); slash("sound"); slash("pets"); slash("lock"); assert(db.windows[1].locked and db.windows[2].locked); slash("unlock"); assert(not db.windows[1].locked)
+slash("texture GLASS"); assert(db.barTexture == "glass"); slash("texture xx"); assert(db.barTexture == "glass"); slash("font arial 12"); assert(db.barFont == "arial" and db.fontSize == 12); slash("font 99"); assert(db.barFont == "arial" and db.fontSize == 24); slash("font xx"); assert(db.barFont == "arial"); slash("font default"); assert(db.barFont == nil and db.fontSize == nil); slash("font 2002 12"); assert(db.barFont == "2002" and db.fontSize == 12); slash("font 2002"); assert(db.fontSize == 12); slash("font default")
+slash("options"); ForeverMeterOptionSlider1.scripts.OnValueChanged(ForeverMeterOptionSlider1, 14.2); assert(db.fontSize == 14); ForeverMeterOptionSlider2.scripts.OnValueChanged(ForeverMeterOptionSlider2, 1.5); assert(db.scale == 1.5); slash("font default"); slash("scale 1")
+slash("font oswald"); eventsFrame.scripts.OnUpdate(eventsFrame, 1); eventsFrame.scripts.OnUpdate(eventsFrame, 1); slash("font default")
 slash("toggle"); assert(not w1.shown and not ForeverMeterFrame2.shown)
 ForeverMeter_Toggle(); assert(w1.shown and ForeverMeterFrame2.shown)
 slash("aide")
@@ -170,7 +180,7 @@ slash("aide")
 slash("mode damage")
 local bar = w1.bars[1]
 bar.scripts.OnEnter(bar)
-assert(GameTooltip.text == "Moi" and #GameTooltip.texts == 3 and GameTooltip.texts[1]:find("Sort1 | 1.2k"), table.concat(GameTooltip.texts, " ; "))
+assert(GameTooltip.text == "Moi" and #GameTooltip.texts == 4 and GameTooltip.texts[1]:find("Sort1 | 1.2k"), table.concat(GameTooltip.texts, " ; "))
 GameTooltip.texts = {}
 w1.bars[2].scripts.OnEnter(w1.bars[2])
 assert(GameTooltip.text == "Bob" and GameTooltip.texts[2]:find("Sort2 | "), table.concat(GameTooltip.texts, " ; "))
@@ -200,6 +210,19 @@ w2.bars[2].scripts.OnMouseUp(w2.bars[2])
 assert(not d.shown and w2.selectedGuid == nil)
 bar.scripts.OnMouseUp(bar); assert(d.shown)
 d.close.scripts.OnClick(); assert(not d.shown and w1.selectedGuid == nil)
+bar.scripts.OnMouseUp(bar); d.header.scripts.OnDragStart(); d.header.scripts.OnDragStop()
+assert(db.detailPoint and db.detailPoint[1] == "CENTER", "détail déplacé : position gardée")
+d.close.scripts.OnClick(); bar.scripts.OnMouseUp(bar); assert(d.point[2] == UIParent, "détail rouvert à sa position, détaché des fenêtres")
+d.close.scripts.OnClick(); db.detailPoint = nil
+-- Maj+clic : comparaison de deux sources dans le détail ; même Maj+clic : retour au détail simple
+bar.scripts.OnMouseUp(bar); shiftDown = true; w1.bars[2].scripts.OnMouseUp(w1.bars[2]); shiftDown = false
+assert(d.title.text == "Moi vs Bob : Dégâts" and d.bars[1].right.text == "1.2k | 600 (+100%)", tostring(d.title.text) .. " / " .. tostring(d.bars[1].right.text))
+secretMode = true; eventsFrame.scripts.OnUpdate(eventsFrame, 1); assert(d.title.text == "Moi : Dégâts", "en combat : détail simple")
+secretMode = false; eventsFrame.scripts.OnUpdate(eventsFrame, 1); assert(d.title.text == "Moi vs Bob : Dégâts")
+shiftDown = true; w1.bars[2].scripts.OnMouseUp(w1.bars[2]); shiftDown = false
+assert(w1.compareGuid == nil and d.title.text == "Moi : Dégâts", "fin de comparaison")
+shiftDown = true; w1.bars[2].scripts.OnMouseUp(w1.bars[2]); shiftDown = false
+d.close.scripts.OnClick(); assert(w1.compareGuid == nil and w1.selectedGuid == nil, "fermeture : comparaison oubliée")
 
 -- Menu : entrées, verrou, nouvelle fenêtre, fermeture
 w1.menuButton.scripts.OnClick(w1.menuButton)
@@ -238,6 +261,13 @@ db.windows[1].locked = true; w1.grip.scripts.OnDragStart(); assert(not w1.sizing
 cursorX, cursorY = 100 + 40, 500 - 5 -- butées : largeur 150 minimum, 1 ligne minimum
 w1.grip.scripts.OnDragStart(); w1.grip.scripts.OnUpdate(); w1.grip.scripts.OnDragStop()
 assert(db.windows[1].width == 150 and db.windows[1].rows == 1, "butées min")
+-- Poignée gauche : coin haut-droit fixe, la largeur grandit vers la gauche
+w1.l, w1.t, w1.w = 100, 500, 300
+w1.gripLeft.scripts.OnDragStart(); assert(w1.sizing and w1.point[1] == "TOPRIGHT" and w1.point[4] == 400 and w1.point[5] == 500, "coin haut-droit fixé")
+cursorX, cursorY = 50, 500 - (18 + 5 * 17 + 3)
+w1.gripLeft.scripts.OnUpdate(); w1.gripLeft.scripts.OnDragStop()
+assert(not w1.sizing and db.windows[1].width == 350 and db.windows[1].rows == 5, "poignée gauche")
+db.windows[2].width, db.windows[2].rows = 300, 7; slash("windows 3"); assert(db.windows[3].width == 300 and db.windows[3].rows == 7, "nouvelle fenêtre à la taille de sa parente"); slash("windows 2"); db.windows[2].width, db.windows[2].rows = nil, nil
 slash("rows 4"); assert(db.windows[1].rows == nil and w1.rows == 4 and w2.rows == 4)
 slash("width 260"); assert(db.windows[1].width == nil and w1.w == 260)
 

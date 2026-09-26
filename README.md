@@ -1,7 +1,7 @@
 # ForeverMeter
 
 Damage, healing, damage taken and threat meter for **WoW Forever** (client 1.60, 12.x engine).
-Single Lua file, no dependencies (no Details, no Ace, no LibStub). A lightweight alternative to Details.
+Single Lua file, no dependencies.
 
 ## Why a dedicated meter
 On this engine, `COMBAT_LOG_EVENT_UNFILTERED` is forbidden to addons (ADDON_ACTION_FORBIDDEN popup).
@@ -16,7 +16,8 @@ Install from CurseForge or Wago, or copy the folder into
 (the folder must be named `ForeverMeter`, like the `.toc` file).
 
 ## Features
-- Modes: damage, healing, absorbs, damage taken, interrupts, dispels, deaths, threat.
+- Modes: damage, healing, absorbs, damage taken, enemy damage taken, avoidable damage taken, interrupts, dispels, deaths, threat.
+  Enemy and avoidable damage taken appear only when the client knows these meter types.
 - Up to 4 windows, each with its own mode, session and position (damage and healing side by side, for example).
   Menu → **New window** / **Close this window**, or `/fm windows 2`.
 - Snapping: a new window attaches below the previous one. Dropping a window against the edge of another
@@ -27,6 +28,7 @@ Install from CurseForge or Wago, or copy the folder into
 - **Menu** button (or right-click on the title): mode, session, lock, windows. **Reset** button: clears data.
 - Padlock in the title bar: locks position and size of that window only (`/fm lock` / `unlock`: all windows).
 - Hover a bar: top 5 spells of that source. Click: per-spell breakdown (icon, total, per second). Mouse wheel: scroll.
+- Shift-click a second bar while the breakdown is open: spell-by-spell comparison of both sources ("12.3k | 9.8k (+26%)"), out of combat only.
 - Specialization icon when the client provides one, class icon otherwise.
 - Damage taken: the per-spell breakdown shows the creature that cast it.
 - Deaths: time of death on the bar, last hits taken (client death recap) on hover.
@@ -39,7 +41,7 @@ Install from CurseForge or Wago, or copy the folder into
 
 ## Commands
 ```
-/fm mode <damage|heal|absorbs|taken|interrupts|dispels|deaths|threat>
+/fm mode <damage|heal|absorbs|taken|enemytaken|avoidable|interrupts|dispels|deaths|threat>
 /fm report [N] | reset | lock | unlock | toggle
 /fm windows <1-4> | refresh <s> | scale <x> | rows <n> | width <px> | warn <%> | sound | pets | defaults
 /fm lang [auto|enUS|frFR|deDE|esES|esMX|itIT|ptBR|ruRU|koKR|zhCN|zhTW]

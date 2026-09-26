@@ -1,13 +1,7 @@
 -- Locale/deDE.lua
-<<<<<<< HEAD
-if GetLocale() ~= "deDE" then return end
-local _, NS = ...
-local L = NS.L
-=======
 local _, NS = ...
 local L = {}
 NS.Locales.deDE = L
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.MODE_DAMAGE = "Schaden"
 L.MODE_HEAL = "Heilung"
 L.MODE_ABSORBS = "Absorption"
@@ -41,20 +35,13 @@ L.MSG_WARN = "Bedrohungswarnung bei %d%%"
 L.MSG_SOUND = "Ton %s"
 L.MSG_PETS = "Begleiter in der Bedrohungsansicht %s"
 L.MSG_DEFAULTS = "Einstellungen zurückgesetzt"
-<<<<<<< HEAD
-=======
 L.MSG_LANG = "Sprache: %s"
 L.MSG_LANG_LIST = "Sprachen: %s (auto = Sprache des Spielclients)"
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.WORD_ON = "an"
 L.WORD_OFF = "aus"
 L.WORD_SHOWN = "angezeigt"
 L.WORD_HIDDEN = "ausgeblendet"
-<<<<<<< HEAD
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
-L.HELP_2 = "Menü oder Rechtsklick auf den Titel: Modus und Sitzung wählen. Reset: zurücksetzen. Klick auf einen Balken = Details pro Zauber. Mausrad = scrollen."
-=======
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | texture | font | lang | options | defaults"
 L.HELP_2 = "Menü oder Rechtsklick auf den Titel: Modus und Sitzung wählen. Reset: zurücksetzen. Klick auf einen Balken = Details pro Zauber. Mausrad = scrollen. Griff unten rechts = Größe ändern."
 L.MENU_WINDOWS = "Fenster"
 L.MENU_LOCK = "Position sperren"
@@ -64,4 +51,23 @@ L.TIP_NO_RECAP = "keine Todesübersicht verfügbar"
 L.TIP_CLICK = "Klick: Details pro Zauber"
 L.MSG_WINDOWS = "%d Fenster"
 L.MSG_REFRESH = "Aktualisierung alle %.2f s"
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
+L.MSG_TEXTURE = "Leistentextur: %s"
+L.MSG_TEXTURE_LIST = "Texturen: %s"
+L.MSG_FONT = "Leistenschrift: %s, Größe %d"
+L.MSG_FONT_LIST = "Schriften: default, %s (/fm font <Name> [Größe])"
+L.MENU_OPTIONS = "Optionen"
+L.OPT_TEXTURE = "Leistentextur"
+L.OPT_FONT = "Leistenschrift"
+L.OPT_FONT_SIZE = "Schriftgröße"
+L.OPT_LANG = "Sprache"
+L.OPT_SCALE = "Skalierung"
+L.OPT_REFRESH = "Aktualisierung (s)"
+L.OPT_WARN = "Bedrohungswarnung (%)"
+L.OPT_SOUND = "Warnton"
+L.OPT_PETS = "Begleiter in Bedrohungsansicht"
+L.OPT_LOCK = "Fenster sperren"
+L.OPT_DEFAULTS = "Standardeinstellungen"
+L.OPT_DEFAULT = "Standard"
+L.MODE_ENEMY_TAKEN = "Erlittener Schaden (Feinde)"
+L.MODE_AVOIDABLE = "Vermeidbarer erlittener Schaden"
+L.TIP_COMPARE = "Umschalt+Klick: mit der offenen Aufschlüsselung vergleichen"

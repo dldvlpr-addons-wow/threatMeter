@@ -1,13 +1,7 @@
 -- Locale/ptBR.lua
-<<<<<<< HEAD
-if GetLocale() ~= "ptBR" then return end
-local _, NS = ...
-local L = NS.L
-=======
 local _, NS = ...
 local L = {}
 NS.Locales.ptBR = L
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.MODE_DAMAGE = "Dano"
 L.MODE_HEAL = "Cura"
 L.MODE_ABSORBS = "Absorções"
@@ -41,20 +35,13 @@ L.MSG_WARN = "aviso de ameaça em %d%%"
 L.MSG_SOUND = "som %s"
 L.MSG_PETS = "ajudantes na visão de ameaça %s"
 L.MSG_DEFAULTS = "configurações redefinidas"
-<<<<<<< HEAD
-=======
 L.MSG_LANG = "idioma: %s"
 L.MSG_LANG_LIST = "idiomas: %s (auto = idioma do cliente)"
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.WORD_ON = "ativado"
 L.WORD_OFF = "desativado"
 L.WORD_SHOWN = "exibidos"
 L.WORD_HIDDEN = "ocultos"
-<<<<<<< HEAD
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
-L.HELP_2 = "Botão Menu ou clique direito no título: escolher modo e sessão. Botão Reset: redefinir. Clique numa barra = detalhe por feitiço. Roda do mouse = rolar."
-=======
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | texture | font | lang | options | defaults"
 L.HELP_2 = "Botão Menu ou clique direito no título: escolher modo e sessão. Botão Reset: redefinir. Clique numa barra = detalhe por feitiço. Roda do mouse = rolar. Alça inferior direita = redimensionar."
 L.MENU_WINDOWS = "Janelas"
 L.MENU_LOCK = "Travar posição"
@@ -64,4 +51,23 @@ L.TIP_NO_RECAP = "nenhum resumo de morte disponível"
 L.TIP_CLICK = "Clique: detalhes por feitiço"
 L.MSG_WINDOWS = "%d janela(s)"
 L.MSG_REFRESH = "atualização a cada %.2f s"
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
+L.MSG_TEXTURE = "textura das barras: %s"
+L.MSG_TEXTURE_LIST = "texturas: %s"
+L.MSG_FONT = "fonte das barras: %s, tamanho %d"
+L.MSG_FONT_LIST = "fontes: default, %s (/fm font <nome> [tamanho])"
+L.MENU_OPTIONS = "Opções"
+L.OPT_TEXTURE = "Textura das barras"
+L.OPT_FONT = "Fonte das barras"
+L.OPT_FONT_SIZE = "Tamanho da fonte"
+L.OPT_LANG = "Idioma"
+L.OPT_SCALE = "Escala"
+L.OPT_REFRESH = "Atualização (s)"
+L.OPT_WARN = "Alerta de ameaça (%)"
+L.OPT_SOUND = "Som de alerta"
+L.OPT_PETS = "Mascotes na visão de ameaça"
+L.OPT_LOCK = "Travar janelas"
+L.OPT_DEFAULTS = "Configurações padrão"
+L.OPT_DEFAULT = "Padrão"
+L.MODE_ENEMY_TAKEN = "Dano sofrido (inimigos)"
+L.MODE_AVOIDABLE = "Dano evitável sofrido"
+L.TIP_COMPARE = "Shift+clique: comparar com o detalhe aberto"

@@ -1,13 +1,7 @@
 -- Locale/koKR.lua
-<<<<<<< HEAD
-if GetLocale() ~= "koKR" then return end
-local _, NS = ...
-local L = NS.L
-=======
 local _, NS = ...
 local L = {}
 NS.Locales.koKR = L
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.MODE_DAMAGE = "피해"
 L.MODE_HEAL = "치유"
 L.MODE_ABSORBS = "흡수"
@@ -41,20 +35,13 @@ L.MSG_WARN = "위협 경고 %d%%"
 L.MSG_SOUND = "소리 %s"
 L.MSG_PETS = "위협 보기에서 소환수 %s"
 L.MSG_DEFAULTS = "설정이 초기화되었습니다"
-<<<<<<< HEAD
-=======
 L.MSG_LANG = "언어: %s"
 L.MSG_LANG_LIST = "언어 목록: %s (auto = 게임 클라이언트 언어)"
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.WORD_ON = "켜짐"
 L.WORD_OFF = "꺼짐"
 L.WORD_SHOWN = "표시"
 L.WORD_HIDDEN = "숨김"
-<<<<<<< HEAD
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
-L.HELP_2 = "메뉴 버튼 또는 제목 우클릭: 모드와 세션 선택. 초기화 버튼: 초기화. 막대 클릭 = 주문별 상세. 마우스 휠 = 스크롤."
-=======
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | texture | font | lang | options | defaults"
 L.HELP_2 = "메뉴 버튼 또는 제목 우클릭: 모드와 세션 선택. 초기화 버튼: 초기화. 막대 클릭 = 주문별 상세. 마우스 휠 = 스크롤. 오른쪽 아래 손잡이 = 크기 조절."
 L.MENU_WINDOWS = "창"
 L.MENU_LOCK = "위치 고정"
@@ -64,4 +51,23 @@ L.TIP_NO_RECAP = "죽음 요약 없음"
 L.TIP_CLICK = "클릭: 주문별 상세"
 L.MSG_WINDOWS = "창 %d개"
 L.MSG_REFRESH = "%.2f초마다 갱신"
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
+L.MSG_TEXTURE = "바 텍스처: %s"
+L.MSG_TEXTURE_LIST = "텍스처 목록: %s"
+L.MSG_FONT = "바 글꼴: %s, 크기 %d"
+L.MSG_FONT_LIST = "글꼴 목록: default, %s (/fm font <이름> [크기])"
+L.MENU_OPTIONS = "설정"
+L.OPT_TEXTURE = "바 텍스처"
+L.OPT_FONT = "바 글꼴"
+L.OPT_FONT_SIZE = "글꼴 크기"
+L.OPT_LANG = "언어"
+L.OPT_SCALE = "크기 비율"
+L.OPT_REFRESH = "갱신 주기 (초)"
+L.OPT_WARN = "위협 경고 (%)"
+L.OPT_SOUND = "경고 소리"
+L.OPT_PETS = "위협 보기에 소환수 표시"
+L.OPT_LOCK = "창 잠금"
+L.OPT_DEFAULTS = "기본 설정으로"
+L.OPT_DEFAULT = "기본값"
+L.MODE_ENEMY_TAKEN = "받은 피해 (적)"
+L.MODE_AVOIDABLE = "피할 수 있는 받은 피해"
+L.TIP_COMPARE = "Shift+클릭: 열린 상세 정보와 비교"

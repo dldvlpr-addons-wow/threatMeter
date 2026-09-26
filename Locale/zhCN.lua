@@ -1,13 +1,7 @@
 -- Locale/zhCN.lua
-<<<<<<< HEAD
-if GetLocale() ~= "zhCN" then return end
-local _, NS = ...
-local L = NS.L
-=======
 local _, NS = ...
 local L = {}
 NS.Locales.zhCN = L
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.MODE_DAMAGE = "伤害"
 L.MODE_HEAL = "治疗"
 L.MODE_ABSORBS = "吸收"
@@ -41,20 +35,13 @@ L.MSG_WARN = "仇恨警报阈值 %d%%"
 L.MSG_SOUND = "声音 %s"
 L.MSG_PETS = "仇恨视图中的宠物 %s"
 L.MSG_DEFAULTS = "设置已重置"
-<<<<<<< HEAD
-=======
 L.MSG_LANG = "语言：%s"
 L.MSG_LANG_LIST = "可用语言：%s（auto = 游戏客户端语言）"
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
 L.WORD_ON = "开"
 L.WORD_OFF = "关"
 L.WORD_SHOWN = "显示"
 L.WORD_HIDDEN = "隐藏"
-<<<<<<< HEAD
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | warn %% | sound | pets | defaults"
-L.HELP_2 = "菜单 按钮或右键标题：选择模式和会话。重置按钮：清空。点击条目 = 按法术查看详情。滚轮 = 滚动。"
-=======
-L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | lang | defaults"
+L.HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | texture | font | lang | options | defaults"
 L.HELP_2 = "菜单 按钮或右键标题：选择模式和会话。重置按钮：清空。点击条目 = 按法术查看详情。滚轮 = 滚动。 右下角拖柄 = 调整大小。"
 L.MENU_WINDOWS = "窗口"
 L.MENU_LOCK = "锁定位置"
@@ -64,4 +51,23 @@ L.TIP_NO_RECAP = "无死亡回顾"
 L.TIP_CLICK = "点击：按法术查看详情"
 L.MSG_WINDOWS = "%d 个窗口"
 L.MSG_REFRESH = "每 %.2f 秒刷新"
->>>>>>> f337a50ad558bfa5aafa94eaf623bb784d887ead
+L.MSG_TEXTURE = "计量条材质：%s"
+L.MSG_TEXTURE_LIST = "可用材质：%s"
+L.MSG_FONT = "计量条字体：%s，大小 %d"
+L.MSG_FONT_LIST = "可用字体：default, %s（/fm font <名称> [大小]）"
+L.MENU_OPTIONS = "选项"
+L.OPT_TEXTURE = "计量条材质"
+L.OPT_FONT = "计量条字体"
+L.OPT_FONT_SIZE = "字体大小"
+L.OPT_LANG = "语言"
+L.OPT_SCALE = "缩放"
+L.OPT_REFRESH = "刷新间隔（秒）"
+L.OPT_WARN = "仇恨警告（%）"
+L.OPT_SOUND = "警告音效"
+L.OPT_PETS = "仇恨视图显示宠物"
+L.OPT_LOCK = "锁定窗口"
+L.OPT_DEFAULTS = "恢复默认设置"
+L.OPT_DEFAULT = "默认"
+L.MODE_ENEMY_TAKEN = "承受伤害（敌人）"
+L.MODE_AVOIDABLE = "可避免的承受伤害"
+L.TIP_COMPARE = "Shift+点击：与已打开的详情比较"
