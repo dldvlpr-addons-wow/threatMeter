@@ -1,5 +1,10 @@
 # ForeverMeter
 
+## Unreleased
+
+### New
+- **Auto show** (option): windows show in combat or in a group, and hide 10 s after a solo fight.
+
 ## 1.5.0
 
 ### New

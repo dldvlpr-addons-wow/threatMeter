@@ -90,6 +90,7 @@ local DEFAULTS = {
 	refresh = 0.2,                        -- secondes entre deux rafraîchissements (les événements C_DamageMeter rafraîchissent aussi)
 	warnSound = true,
 	showPets = true,
+	autoHide = false,                     -- fenêtres visibles seulement en combat ou en groupe
 	locale = nil,                         -- nil = langue du client (GetLocale)
 	barTexture = "blizzard",              -- nom dans FM.BAR_TEXTURES
 	barFont = nil,                        -- nom dans FM.BAR_FONTS, nil = police du client (gère cyrillique et CJK)
@@ -1290,6 +1291,18 @@ local function ToggleWindows()
 end
 _G.ForeverMeter_Toggle = ToggleWindows -- AddonCompartmentFunc (.toc)
 
+-- Affichage automatique (db.autoHide) : visible en combat ou en groupe, masqué 10 s après la fin du combat en solo.
+local autoHideIn
+local function AutoShow(inCombat)
+	if not db.autoHide then autoHideIn = nil; return end
+	if inCombat or IsInGroup() then
+		autoHideIn = nil
+		for i = 1, #db.windows do windows[i]:Show() end
+	else
+		autoHideIn = autoHideIn or 10
+	end
+end
+
 -- Applique la langue choisie (db.locale, sinon celle du client) et met à jour les textes déjà posés.
 local function ApplyLanguage()
 	local code = FM.ApplyLocale(db.locale or GetLocale())
@@ -1336,6 +1349,14 @@ events:SetScript("OnUpdate", function(_, elapsed)
 			elapsedSince = db.refresh -- Refresh() juste en dessous réécrit les textes vidés par Layout()
 		end
 	end
+	if autoHideIn then
+		autoHideIn = autoHideIn - elapsed
+		if autoHideIn <= 0 then
+			autoHideIn = nil
+			for i = 1, #db.windows do windows[i]:Hide() end
+			detail:Hide()
+		end
+	end
 	if not db or elapsedSince < db.refresh then return end
 	elapsedSince = 0
 	Refresh()
@@ -1345,6 +1366,7 @@ Register(events, "ADDON_LOADED")
 Register(events, "PLAYER_ENTERING_WORLD")
 Register(events, "GROUP_ROSTER_UPDATE")
 Register(events, "PLAYER_REGEN_ENABLED")
+Register(events, "PLAYER_REGEN_DISABLED")
 Register(events, "DAMAGE_METER_CURRENT_SESSION_UPDATED")
 Register(events, "DAMAGE_METER_COMBAT_SESSION_UPDATED")
 Register(events, "DAMAGE_METER_RESET")
@@ -1366,8 +1388,15 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		return
 	elseif event == "GROUP_ROSTER_UPDATE" then
 		wipe(threatSamples)
+		AutoShow(UnitAffectingCombat("player"))
+	elseif event == "PLAYER_REGEN_DISABLED" then
+		AutoShow(true)
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		warnedGuid = nil
+		AutoShow(false)
+		Refresh()
+	elseif event == "PLAYER_ENTERING_WORLD" then
+		AutoShow(UnitAffectingCombat("player"))
 		Refresh()
 	elseif event == "DAMAGE_METER_RESET" then
 		for i = 1, #db.windows do
@@ -1563,10 +1592,14 @@ do
 	OptionCheck(p, "OPT_LOCK", LEFT, -346, function() return windows[1] and windows[1].cfg.locked end, function(v)
 		for i = 1, #db.windows do windows[i].cfg.locked = v or nil; windows[i].UpdateLock() end
 	end)
+	OptionCheck(p, "OPT_AUTO_HIDE", LEFT, -376, function() return db.autoHide end, function(v)
+		db.autoHide = v
+		if v then AutoShow(UnitAffectingCombat("player")) else for i = 1, #db.windows do windows[i]:Show() end end
+	end)
 
 	local defaults = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
 	defaults:SetSize(200, 22)
-	defaults:SetPoint("TOPLEFT", LEFT, -392)
+	defaults:SetPoint("TOPLEFT", LEFT, -422)
 	defaults:SetScript("OnClick", function() ResetSettings(); ApplyOption() end)
 	refreshers[#refreshers + 1] = function() defaults:SetText(L.OPT_DEFAULTS) end
 

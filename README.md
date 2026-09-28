@@ -51,10 +51,11 @@ Install from CurseForge or Wago, or copy the folder into
 - Refresh every 0.2 s by default, on top of meter events (`/fm refresh 0.1` for snappier updates).
 - Button in the addon compartment (next to the minimap) to show or hide the windows.
 - Options panel (Options → AddOns → ForeverMeter, `/fm options`, or **Options** in a window menu):
-  texture, font, font size, language, scale, refresh, threat warning, sound, pets, lock, reset.
+  texture, font, font size, language, scale, refresh, threat warning, sound, pets, lock, auto show, reset.
 - Bar textures (`blizzard`, `flat`, `gradient`, `glass`, `striped`, `fade`) and fonts (six bundled OFL fonts plus
   the game fonts). Textures and fonts from LibSharedMedia are listed too when another addon loads it.
 - Animated bar fill.
+- Auto show: windows only in combat or in a group, hidden 10 s after a solo fight (option).
 - Threat: visual and sound warning above an adjustable threshold (`/fm warn 90`).
 - Chat report (`/fm report 5`): raid, party or say depending on context.
 - 11 languages (`Locale/`): enUS, frFR, deDE, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW.
@@ -78,7 +79,7 @@ lua uicheck.lua
 ```
 `selfcheck.lua` tests pure logic (formatting, threat sorting, death recap, window configuration).
 `uicheck.lua` runs the UI code against a fake client (loading, settings migration, windows,
-menu, tooltip, breakdown, commands, secret values in combat, CVar settings mirror).
+menu, tooltip, breakdown, commands, secret values in combat, CVar settings mirror, auto show).
 
 WoW Forever 1.60 writes account SavedVariables but does not read them back. Settings are therefore duplicated
 (`Mirror.lua`): the table is stored in `g_addonCategoriesCollapsed` (Blizzard_AddOnList save,

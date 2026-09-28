@@ -71,6 +71,7 @@ NS.Locales.enUS = {
     OPT_SOUND = "Warning sound",
     OPT_PETS = "Pets in threat view",
     OPT_LOCK = "Lock windows",
+    OPT_AUTO_HIDE = "Show only in combat or in a group",
     OPT_DEFAULTS = "Reset settings",
     OPT_DEFAULT = "Default",
 }

@@ -60,7 +60,8 @@ shiftDown = false
 IsShiftKeyDown = function() return shiftDown end
 UnitDetailedThreatSituation = function(u) return u == "player", 3, 95, 95, 1000 end
 IsInRaid = function() return false end
-IsInGroup = function() return true end
+local inGroup = true
+IsInGroup = function() return inGroup end
 IsInInstance = function() return false end
 GetNumGroupMembers = function() return 2 end
 SendChatMessage = function(msg, ch) print("  " .. ch .. "> " .. msg) end
@@ -350,4 +351,22 @@ Fire("ADDON_LOADED", "ForeverMeter")
 db = ForeverMeterDB
 assert(#db.windows == 1 and db.windows[1].mode == "threat", "réglages restaurés depuis la table hôte")
 assert(g_addonCategoriesCollapsed.ForeverMeter == ForeverMeterDB, "table hôte = table active")
+
+-- Affichage automatique : masqué 10 s après le combat en solo, réaffiché en combat ou en groupe.
+inGroup = false
+db.autoHide = true
+Fire("PLAYER_REGEN_DISABLED")
+Fire("PLAYER_REGEN_ENABLED")
+eventsFrame.scripts.OnUpdate(eventsFrame, 5)
+assert(ForeverMeterFrame.shown, "encore visible 5 s après le combat")
+eventsFrame.scripts.OnUpdate(eventsFrame, 6)
+assert(not ForeverMeterFrame.shown, "masqué 10 s après le combat")
+Fire("PLAYER_REGEN_DISABLED")
+assert(ForeverMeterFrame.shown, "réaffiché en combat")
+Fire("PLAYER_REGEN_ENABLED")
+inGroup = true
+Fire("GROUP_ROSTER_UPDATE")
+eventsFrame.scripts.OnUpdate(eventsFrame, 20)
+assert(ForeverMeterFrame.shown, "reste visible en groupe")
+db.autoHide = false
 print("uicheck OK")
