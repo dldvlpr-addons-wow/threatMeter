@@ -29,6 +29,7 @@ When there is no room, it opens near the center of the screen.
 - Until you move it, it opens on a free side of its window.
 - Shift-click another bar of the same window to compare both players spell by spell
   (`12.3k | 9.8k (+26%)`). Shift-click it again to stop. Out of combat only.
+- Right-click its title to send that player's top 5 spells to raid, party or say (the compared lines when a comparison is open). Out of combat only.
 
 ## Locking
 - Click the padlock in the title bar to lock the position and size of that window only.

@@ -74,4 +74,10 @@ NS.Locales.enUS = {
     OPT_AUTO_HIDE = "Show only in combat or in a group",
     OPT_DEFAULTS = "Reset settings",
     OPT_DEFAULT = "Default",
+    OPT_COLUMNS = "Bar text",
+    OPT_COL_TOTAL = "Total",
+    OPT_COL_PER_SECOND = "Per second",
+    OPT_COL_PERCENT = "Percent",
+    REPORT_DETAIL_HEADER = "ForeverMeter: %s, %s, %s",
+    TIP_REPORT = "Right-click the breakdown title: send to chat",
 }

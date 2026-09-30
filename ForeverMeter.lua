@@ -91,7 +91,8 @@ local DEFAULTS = {
 	warnSound = true,
 	showPets = true,
 	autoHide = false,                     -- fenêtres visibles seulement en combat ou en groupe
-	locale = nil,                         -- nil = langue du client (GetLocale)
+	columns = { total = true, perSecond = true, percent = true }, -- texte de droite des barres
+	locale = nil,                        -- nil = langue du client (GetLocale)
 	barTexture = "blizzard",              -- nom dans FM.BAR_TEXTURES
 	barFont = nil,                        -- nom dans FM.BAR_FONTS, nil = police du client (gère cyrillique et CJK)
 	fontSize = nil,                       -- nil = taille de GameFontHighlightSmall
@@ -184,15 +185,28 @@ function FM.FormatTime(sec)
 	return string.format("%d:%02d", math.floor(sec / 60), sec % 60)
 end
 
--- Ligne de droite d'une barre. `secret` vrai en combat : pas de comparaison ni d'arithmétique possible,
--- string.format reste permis et le résultat s'affiche tel quel.
-function FM.FormatRow(total, perSecond, sessionTotal, secret)
+-- Ligne de droite d'une barre, selon les colonnes choisies (`columns` : total, perSecond, percent ; toutes par défaut).
+-- `secret` vrai en combat : pas de comparaison ni d'arithmétique possible, string.format reste permis et le
+-- résultat s'affiche tel quel ; le pourcentage, calculé, n'existe pas.
+function FM.FormatRow(total, perSecond, sessionTotal, secret, columns)
+	columns = columns or DEFAULTS.columns
 	if secret then
 		-- Pas de test possible sur une valeur secrète : une décimale toujours, sinon %d tronque 0.8 en 0.
-		return string.format("%d (%.1f/s)", total, perSecond)
+		if columns.total and columns.perSecond then return string.format("%d (%.1f/s)", total, perSecond) end
+		if columns.total then return string.format("%d", total) end
+		if columns.perSecond then return string.format("%.1f/s", perSecond) end
+		return ""
 	end
-	local pct = sessionTotal and sessionTotal > 0 and (total / sessionTotal * 100) or 0
-	return string.format("%s (%s/s, %.1f%%)", FM.FormatValue(total), FM.FormatValue(perSecond), pct)
+	local parts = {}
+	if columns.perSecond then parts[#parts + 1] = FM.FormatValue(perSecond) .. "/s" end
+	if columns.percent then
+		local pct = sessionTotal and sessionTotal > 0 and (total / sessionTotal * 100) or 0
+		parts[#parts + 1] = string.format("%.1f%%", pct)
+	end
+	local rest = table.concat(parts, ", ")
+	if not columns.total then return rest end
+	if rest == "" then return FM.FormatValue(total) end
+	return FM.FormatValue(total) .. " (" .. rest .. ")"
 end
 
 -- Comparaison de deux sources : union des sorts, { spellID, a, b, creatureName } triés par le plus grand
@@ -843,7 +857,7 @@ local function RenderDetail()
 			bar.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 			bar.icon:SetTexture(SpellIcon(s.spellID))
 			bar.left:SetText(SpellLabel(win, s))
-			bar.right:SetText(FM.FormatRow(s.totalAmount, PerSecond(win, s, session, secret), sessionTotal, secret))
+			bar.right:SetText(FM.FormatRow(s.totalAmount, PerSecond(win, s, session, secret), sessionTotal, secret, db.columns))
 			bar:Show()
 		else
 			bar:Hide()
@@ -878,7 +892,7 @@ local function RenderMeter(win)
 				-- Morts : nombre, puis instant de la (dernière) mort dans le combat.
 				bar.right:SetText(FM.FormatValue(src.totalAmount) .. " · " .. FM.FormatTime(deathTime))
 			else
-				bar.right:SetText(FM.FormatRow(src.totalAmount, PerSecond(win, src, session, secret), sessionTotal, secret))
+				bar.right:SetText(FM.FormatRow(src.totalAmount, PerSecond(win, src, session, secret), sessionTotal, secret, db.columns))
 			end
 			bar.glow:Hide()
 			bar.source = src
@@ -975,10 +989,11 @@ local function ShowTooltip(bar)
 		local session = ReadSession(win)
 		for i = 1, math.min(5, #spells) do
 			local s = spells[i]
-			GameTooltip:AddDoubleLine(SpellLabel(win, s), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, secret), source.totalAmount, secret), 1, 1, 1, 1, 1, 1)
+			GameTooltip:AddDoubleLine(SpellLabel(win, s), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, secret), source.totalAmount, secret, db.columns), 1, 1, 1, 1, 1, 1)
 		end
 		GameTooltip:AddLine(L.TIP_CLICK, 0.5, 0.5, 0.5)
 		GameTooltip:AddLine(L.TIP_COMPARE, 0.5, 0.5, 0.5)
+		GameTooltip:AddLine(L.TIP_REPORT, 0.5, 0.5, 0.5)
 	else
 		GameTooltip:AddLine(L.DETAIL_OUT_OF_COMBAT, 0.7, 0.7, 0.7)
 	end
@@ -1316,6 +1331,9 @@ end
 -- Valeurs par défaut, migration de l'ancien format (db.mode, db.point) vers db.windows, nettoyage.
 local function InitDb()
 	for k, v in pairs(DEFAULTS) do if db[k] == nil then db[k] = v end end
+	-- Colonnes : table propre à db (jamais celle de DEFAULTS, que les cases à cocher modifieraient), clés manquantes à vrai.
+	if db.columns == DEFAULTS.columns then db.columns = {} end
+	for k, v in pairs(DEFAULTS.columns) do if db.columns[k] == nil then db.columns[k] = v end end
 	if not db.windows or not db.windows[1] then
 		db.windows = { { mode = db.mode or "damage", view = "current", point = db.point } }
 	end
@@ -1413,23 +1431,60 @@ end)
 ------------------------------------------------------------------------
 -- Commandes : /fm (mode, report et debug agissent sur la première fenêtre)
 ------------------------------------------------------------------------
+-- Ligne de report : raid, groupe, ou say en instance. SAY est interdit aux addons hors instance
+-- (ADDON_ACTION_FORBIDDEN) : seul, on affiche en local.
+-- Message secret (nom de session d'une créature en instance, joueur sous restriction de carte) : SendChatMessage
+-- le refuse, la ligne est affichée en local.
+local function ChatSend(msg)
+	local channel = IsInRaid() and "RAID" or (IsInGroup() and "PARTY" or (IsInInstance() and "SAY" or nil))
+	if channel and not issecretvalue(msg) then SendChatMessage(msg, channel) else Print(msg) end
+end
+
 local function Report(win, count)
 	if win.cfg.mode == "threat" then Print(L.REPORT_NOTHING_THREAT); return end
 	local session = ReadSession(win)
 	local list = Sources(session)
 	if not list[1] then Print(L.REPORT_NOTHING); return end
 	if issecretvalue(list[1].totalAmount) then Print(L.REPORT_OUT_OF_COMBAT); return end
-	-- SAY est interdit aux addons hors instance (ADDON_ACTION_FORBIDDEN) : seul, on affiche en local.
-	local channel = IsInRaid() and "RAID" or (IsInGroup() and "PARTY" or (IsInInstance() and "SAY" or nil))
-	local function Send(msg)
-		if channel then SendChatMessage(msg, channel) else Print(msg) end
-	end
-	Send(string.format(L.REPORT_HEADER, FM.MODE_INFO[win.cfg.mode].label, SessionLabel(win, session)))
+	ChatSend(string.format(L.REPORT_HEADER, FM.MODE_INFO[win.cfg.mode].label, SessionLabel(win, session)))
 	for i = 1, math.min(count, #list) do
 		local s = list[i]
-		Send(string.format("%d. %s  %s", i, s.name, FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), session.totalAmount, false)))
+		ChatSend(string.format("%d. %s  %s", i, s.name, FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), session.totalAmount, false, db.columns)))
 	end
 end
+
+-- Report des sorts de la source ouverte dans le panneau de détail : clic droit sur son titre.
+local function ReportDetail(count)
+	local win = detail.owner
+	if not win or not win.selectedGuid or not DamageMeter then return end
+	local source = ReadSource(win, win.selectedGuid)
+	local spells, secret = SortedSpells(source)
+	if not spells[1] then Print(L.REPORT_NOTHING); return end
+	if secret then Print(L.REPORT_OUT_OF_COMBAT); return end
+	local session = ReadSession(win)
+	local label, sessionLabel = FM.MODE_INFO[win.cfg.mode].label, SessionLabel(win, session)
+	-- Comparaison ouverte : les mêmes lignes que le panneau, « 12.3k | 9.8k (+26%) ».
+	local other, otherSecret
+	if win.compareGuid then other, otherSecret = SortedSpells(ReadSource(win, win.compareGuid)) end
+	if other and not otherSecret then
+		local rows = FM.CompareSpells(spells, other)
+		ChatSend(string.format(L.REPORT_DETAIL_HEADER, (win.selectedName or "?") .. " vs " .. (win.compareName or "?"), label, sessionLabel))
+		for i = 1, math.min(count, #rows) do
+			local r = rows[i]
+			ChatSend(string.format("%d. %s  %s", i, SpellLabel(win, r), FM.FormatCompare(r.a, r.b)))
+		end
+		return
+	end
+	ChatSend(string.format(L.REPORT_DETAIL_HEADER, win.selectedName or "?", label, sessionLabel))
+	for i = 1, math.min(count, #spells) do
+		local s = spells[i]
+		ChatSend(string.format("%d. %s  %s", i, SpellLabel(win, s), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), source.totalAmount, false, db.columns)))
+	end
+end
+
+detail.header:SetScript("OnClick", function(_, button)
+	if button == "RightButton" then ReportDetail(5) end
+end)
 
 -- Diagnostic (/fm debug) : valeurs brutes de C_DamageMeter pour le mode et la session de la première fenêtre.
 -- Texte technique, volontairement non traduit. %.3f garde les décimales ; string.format accepte les valeurs secrètes.
@@ -1586,6 +1641,10 @@ do
 	OptionSlider(p, "OPT_SCALE", RIGHT, -56, 0.5, 2, 0.05, function() return db.scale end, function(v) db.scale = v end)
 	OptionSlider(p, "OPT_REFRESH", RIGHT, -116, 0.05, 2, 0.05, function() return db.refresh end, function(v) db.refresh = v end)
 	OptionSlider(p, "OPT_WARN", RIGHT, -176, 1, 130, 1, function() return db.warnPct end, function(v) db.warnPct = v end)
+	OptionLabel(p, "OPT_COLUMNS", RIGHT, -236)
+	OptionCheck(p, "OPT_COL_TOTAL", RIGHT, -256, function() return db.columns.total end, function(v) db.columns.total = v end)
+	OptionCheck(p, "OPT_COL_PER_SECOND", RIGHT, -286, function() return db.columns.perSecond end, function(v) db.columns.perSecond = v end)
+	OptionCheck(p, "OPT_COL_PERCENT", RIGHT, -316, function() return db.columns.percent end, function(v) db.columns.percent = v end)
 
 	OptionCheck(p, "OPT_SOUND", LEFT, -286, function() return db.warnSound end, function(v) db.warnSound = v end)
 	OptionCheck(p, "OPT_PETS", LEFT, -316, function() return db.showPets end, function(v) db.showPets = v end)

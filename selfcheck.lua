@@ -17,6 +17,14 @@ assert(FM.FormatRow(12345, 1234, nil, true) == "12345 (1234.0/s)", "en combat : 
 assert(FM.FormatValue(0.818) == "0.8" and FM.FormatValue(7.26) == "7.3" and FM.FormatValue(72) == "72")
 assert(FM.FormatRow(72, 0.818, 72, false) == "72 (0.8/s, 100.0%)")
 assert(FM.FormatRow(72, 0.818, nil, true) == "72 (0.8/s)")
+-- Colonnes choisies : total seul, sans total, sans débit, aucune ; en combat le pourcentage (calculé) est absent.
+assert(FM.FormatRow(12345, 1234, 24690, false, { total = true }) == "12.3k")
+assert(FM.FormatRow(12345, 1234, 24690, false, { perSecond = true, percent = true }) == "1.2k/s, 50.0%")
+assert(FM.FormatRow(12345, 1234, 24690, false, { total = true, percent = true }) == "12.3k (50.0%)")
+assert(FM.FormatRow(12345, 1234, 24690, false, {}) == "")
+assert(FM.FormatRow(12345, 1234, nil, true, { perSecond = true, percent = true }) == "1234.0/s")
+assert(FM.FormatRow(12345, 1234, nil, true, { total = true, percent = true }) == "12345")
+assert(FM.FormatRow(12345, 1234, nil, true, { percent = true }) == "")
 
 for _, m in ipairs(FM.MODES) do assert(FM.MODE_INFO[m], m) end
 assert(FM.MODE_INFO.damage.type == 0 and FM.MODE_INFO.heal.type == 2 and FM.MODE_INFO.taken.type == 7)

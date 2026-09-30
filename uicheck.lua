@@ -181,7 +181,7 @@ slash("aide")
 slash("mode damage")
 local bar = w1.bars[1]
 bar.scripts.OnEnter(bar)
-assert(GameTooltip.text == "Moi" and #GameTooltip.texts == 4 and GameTooltip.texts[1]:find("Sort1 | 1.2k"), table.concat(GameTooltip.texts, " ; "))
+assert(GameTooltip.text == "Moi" and #GameTooltip.texts == 5 and GameTooltip.texts[1]:find("Sort1 | 1.2k"), table.concat(GameTooltip.texts, " ; "))
 GameTooltip.texts = {}
 w1.bars[2].scripts.OnEnter(w1.bars[2])
 assert(GameTooltip.text == "Bob" and GameTooltip.texts[2]:find("Sort2 | "), table.concat(GameTooltip.texts, " ; "))
@@ -204,6 +204,18 @@ bar.scripts.OnMouseUp(bar)
 local d = ForeverMeterDetailFrame
 assert(d.shown and w1.selectedGuid == "Player-player" and d.title.text == "Moi : Dégâts", tostring(d.title.text))
 assert(d.bars[1].left.text == "Sort1" and d.bars[1].right.text == "1.2k (3/s, 60.0%)", d.bars[1].right.text)
+-- Clic droit sur le titre du détail : report des sorts de la source ouverte, même canal que /fm report
+local sent, realSend = {}, SendChatMessage
+SendChatMessage = function(msg, ch) sent[#sent + 1] = ch .. "> " .. msg end
+d.header.scripts.OnClick(d.header, "RightButton")
+assert(#sent == 3 and sent[1] == "PARTY> ForeverMeter : Moi, Dégâts, Combat actuel" and sent[2] == "PARTY> 1. Sort1  1.2k (3/s, 60.0%)", table.concat(sent, " ; "))
+SendChatMessage = realSend
+-- Colonnes du texte de droite : pourcentage puis total retirés ; les défauts de FormatRow restent intacts
+db.columns.percent = false; eventsFrame.scripts.OnUpdate(eventsFrame, 1)
+assert(d.bars[1].right.text == "1.2k (3/s)" and w1.bars[1].right.text == "2.0k (200/s)", d.bars[1].right.text .. " / " .. w1.bars[1].right.text)
+db.columns.total = false; eventsFrame.scripts.OnUpdate(eventsFrame, 1)
+assert(w1.bars[1].right.text == "200/s" and ForeverMeter.FormatRow(10, 1, 10, false) == "10 (1/s, 100.0%)", w1.bars[1].right.text)
+db.columns.total, db.columns.percent = true, true
 local w2 = ForeverMeterFrame2
 w2.bars[2].scripts.OnMouseUp(w2.bars[2])
 assert(d.shown and w1.selectedGuid == nil and w2.selectedGuid == "Player-bob" and d.title.text:find("Bob"), "détail passe à la fenêtre 2")
@@ -218,6 +230,10 @@ d.close.scripts.OnClick(); db.detailPoint = nil
 -- Maj+clic : comparaison de deux sources dans le détail ; même Maj+clic : retour au détail simple
 bar.scripts.OnMouseUp(bar); shiftDown = true; w1.bars[2].scripts.OnMouseUp(w1.bars[2]); shiftDown = false
 assert(d.title.text == "Moi vs Bob : Dégâts" and d.bars[1].right.text == "1.2k | 600 (+100%)", tostring(d.title.text) .. " / " .. tostring(d.bars[1].right.text))
+sent = {}; SendChatMessage = function(msg, ch) sent[#sent + 1] = ch .. "> " .. msg end
+d.header.scripts.OnClick(d.header, "RightButton")
+assert(sent[1] == "PARTY> ForeverMeter : Moi vs Bob, Dégâts, Combat actuel" and sent[2] == "PARTY> 1. Sort1  1.2k | 600 (+100%)", table.concat(sent, " ; "))
+SendChatMessage = realSend
 secretMode = true; eventsFrame.scripts.OnUpdate(eventsFrame, 1); assert(d.title.text == "Moi : Dégâts", "en combat : détail simple")
 secretMode = false; eventsFrame.scripts.OnUpdate(eventsFrame, 1); assert(d.title.text == "Moi vs Bob : Dégâts")
 shiftDown = true; w1.bars[2].scripts.OnMouseUp(w1.bars[2]); shiftDown = false
@@ -301,6 +317,7 @@ w2.cfg.view = 12; Fire("DAMAGE_METER_RESET"); assert(w2.cfg.view == "current")
 secretMode = true
 eventsFrame.scripts.OnUpdate(eventsFrame, 1)
 assert(w1.bars[1].right.text == "2000 (200.0/s)", w1.bars[1].right.text)
+db.columns.total = false; eventsFrame.scripts.OnUpdate(eventsFrame, 1); assert(w1.bars[1].right.text == "200.0/s", w1.bars[1].right.text); db.columns.total = true
 bar.scripts.OnEnter(bar)
 w1.bars[2].scripts.OnMouseUp(w1.bars[2]) -- GUID d'autrui secret : message chat, pas de détail
 assert(w1.selectedGuid == nil)

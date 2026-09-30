@@ -4,6 +4,13 @@
 
 ### New
 - **Auto show** (option): windows show in combat or in a group, and hide 10 s after a solo fight.
+- **Bar text columns** (options panel): total, per second and percent can each be shown or hidden.
+  In combat the percent is never shown, as the amounts are secret.
+- **Chat report from the breakdown**: right-click the breakdown title to send that player's top 5 spells
+  to raid, party or say. With a comparison open, the compared lines (`12.3k | 9.8k (+26%)`) are sent. Out of combat only.
+
+### Fixed
+- Chat report: a line holding a secret name (creature session in an instance) is shown locally instead of raising.
 
 ## 1.5.0
 

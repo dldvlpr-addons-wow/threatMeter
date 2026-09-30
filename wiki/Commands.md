@@ -7,7 +7,7 @@
 | Command | Effect |
 |---|---|
 | `/fm mode <mode>` | Sets the mode of the first window: `damage`, `heal`, `absorbs`, `taken`, `enemytaken`, `avoidable`, `interrupts`, `dispels`, `deaths`, `threat` (`enemytaken` and `avoidable` only when the client provides them) |
-| `/fm report [N]` | Sends the top N lines (5 by default) of the first window to raid, party or say |
+| `/fm report [N]` | Sends the top N lines (5 by default) of the first window to raid, party or say. Right-click the breakdown title to report one player's top 5 spells |
 | `/fm reset` | Clears the data |
 | `/fm toggle` | Shows or hides the windows |
 | `/fm lock` / `/fm unlock` | Locks or unlocks all windows |
