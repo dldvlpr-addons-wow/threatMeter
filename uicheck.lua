@@ -15,6 +15,7 @@ local function Obj(kind)
 		if k == "SetSize" then return function(self, w, h) self.w, self.h = w, h end end
 		if k == "GetEffectiveScale" then return function() return 1 end end
 		if k == "SetHeight" then return function(self, v) self.h = v end end
+		if k == "SetBackdropColor" then return function(self, _, _, _, a) self.bgAlpha = a end end
 		if k == "GetWidth" then return function(self) return self.w end end
 		if k == "GetHeight" then return function(self) return self.h end end
 		if k == "GetLeft" then return function(self) return self.l or 0 end end
@@ -172,6 +173,8 @@ slash("lang auto")
 slash("refresh 0.1"); assert(db.refresh == 0.1); slash("refresh 9"); assert(db.refresh == 2); slash("refresh 0.2"); slash("rows 3"); slash("width 300"); slash("scale 1.2"); slash("warn 80"); slash("sound"); slash("pets"); slash("lock"); assert(db.windows[1].locked and db.windows[2].locked); slash("unlock"); assert(not db.windows[1].locked)
 slash("texture GLASS"); assert(db.barTexture == "glass"); slash("texture xx"); assert(db.barTexture == "glass"); slash("font arial 12"); assert(db.barFont == "arial" and db.fontSize == 12); slash("font 99"); assert(db.barFont == "arial" and db.fontSize == 24); slash("font xx"); assert(db.barFont == "arial"); slash("font default"); assert(db.barFont == nil and db.fontSize == nil); slash("font 2002 12"); assert(db.barFont == "2002" and db.fontSize == 12); slash("font 2002"); assert(db.fontSize == 12); slash("font default")
 slash("options"); ForeverMeterOptionSlider1.scripts.OnValueChanged(ForeverMeterOptionSlider1, 14.2); assert(db.fontSize == 14); ForeverMeterOptionSlider2.scripts.OnValueChanged(ForeverMeterOptionSlider2, 1.5); assert(db.scale == 1.5); slash("font default"); slash("scale 1")
+ForeverMeterOptionSlider5.scripts.OnValueChanged(ForeverMeterOptionSlider5, 24); assert(db.rowHeight == 24 and w1.bars[1].h == 24); ForeverMeterOptionSlider5.scripts.OnValueChanged(ForeverMeterOptionSlider5, 16)
+assert(w1.bgAlpha == 0.6); ForeverMeterOptionSlider6.scripts.OnValueChanged(ForeverMeterOptionSlider6, 0.5); assert(db.bgAlpha == 0.5 and w1.bgAlpha == 0.5 and ForeverMeterDetailFrame.bgAlpha == 0.5); ForeverMeterOptionSlider6.scripts.OnValueChanged(ForeverMeterOptionSlider6, 0.6)
 slash("font oswald"); eventsFrame.scripts.OnUpdate(eventsFrame, 1); eventsFrame.scripts.OnUpdate(eventsFrame, 1); slash("font default")
 slash("toggle"); assert(not w1.shown and not ForeverMeterFrame2.shown)
 ForeverMeter_Toggle(); assert(w1.shown and ForeverMeterFrame2.shown)

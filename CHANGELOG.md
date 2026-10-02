@@ -8,6 +8,8 @@
   In combat the percent is never shown, as the amounts are secret.
 - **Chat report from the breakdown**: right-click the breakdown title to send that player's top 5 spells
   to raid, party or say. With a comparison open, the compared lines (`12.3k | 9.8k (+26%)`) are sent. Out of combat only.
+- **Bar height** (options panel): slider from 10 to 40 px. Windows keep their number of rows.
+- **Background opacity** (options panel): slider from 0 (transparent) to 1, for the meter windows and the breakdown.
 
 ### Fixed
 - Chat report: a line holding a secret name (creature session in an instance) is shown locally instead of raising.

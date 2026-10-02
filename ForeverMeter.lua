@@ -86,6 +86,7 @@ local DEFAULTS = {
 	rows = 10,
 	width = 260,
 	rowHeight = 16,
+	bgAlpha = 0.6,                        -- opacité du fond des fenêtres (0 = transparent)
 	warnPct = 90,
 	refresh = 0.2,                        -- secondes entre deux rafraîchissements (les événements C_DamageMeter rafraîchissent aussi)
 	warnSound = true,
@@ -589,7 +590,7 @@ local function MakeWindow(name, w, h)
 	f:SetUserPlaced(false)
 	f:EnableMouse(true)
 	f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-	f:SetBackdropColor(0, 0, 0, 0.6)
+	f:SetBackdropColor(0, 0, 0, DEFAULTS.bgAlpha)
 	f:SetBackdropBorderColor(0, 0, 0, 1)
 	f.header = CreateFrame("Button", nil, f)
 	f.header:SetPoint("TOPLEFT")
@@ -674,6 +675,7 @@ end
 
 local function LayoutWindow(f, rows, width)
 	f:SetScale(db.scale)
+	f:SetBackdropColor(0, 0, 0, db.bgAlpha)
 	f:SetWidth(width)
 	f:SetHeight(WindowHeight(rows))
 	LayoutBars(f, rows, width)
@@ -1645,6 +1647,8 @@ do
 	OptionCheck(p, "OPT_COL_TOTAL", RIGHT, -256, function() return db.columns.total end, function(v) db.columns.total = v end)
 	OptionCheck(p, "OPT_COL_PER_SECOND", RIGHT, -286, function() return db.columns.perSecond end, function(v) db.columns.perSecond = v end)
 	OptionCheck(p, "OPT_COL_PERCENT", RIGHT, -316, function() return db.columns.percent end, function(v) db.columns.percent = v end)
+	OptionSlider(p, "OPT_ROW_HEIGHT", RIGHT, -400, 10, 40, 1, function() return db.rowHeight end, function(v) db.rowHeight = v end)
+	OptionSlider(p, "OPT_BG_ALPHA", RIGHT, -460, 0, 1, 0.05, function() return db.bgAlpha end, function(v) db.bgAlpha = v end)
 
 	OptionCheck(p, "OPT_SOUND", LEFT, -286, function() return db.warnSound end, function(v) db.warnSound = v end)
 	OptionCheck(p, "OPT_PETS", LEFT, -316, function() return db.showPets end, function(v) db.showPets = v end)

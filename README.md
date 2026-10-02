@@ -52,7 +52,7 @@ Install from CurseForge or Wago, or copy the folder into
 - Button in the addon compartment (next to the minimap) to show or hide the windows.
 - Options panel (Options → AddOns → ForeverMeter, `/fm options`, or **Options** in a window menu):
   texture, font, font size, language, scale, refresh, threat warning, sound, pets, lock, auto show, reset,
-  bar text columns (total, per second, percent).
+  bar text columns (total, per second, percent), bar height, background opacity.
 - Bar textures (`blizzard`, `flat`, `gradient`, `glass`, `striped`, `fade`) and fonts (six bundled OFL fonts plus
   the game fonts). Textures and fonts from LibSharedMedia are listed too when another addon loads it.
 - Animated bar fill.

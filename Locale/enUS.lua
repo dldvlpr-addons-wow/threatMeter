@@ -78,6 +78,8 @@ NS.Locales.enUS = {
     OPT_COL_TOTAL = "Total",
     OPT_COL_PER_SECOND = "Per second",
     OPT_COL_PERCENT = "Percent",
+    OPT_ROW_HEIGHT = "Bar height",
+    OPT_BG_ALPHA = "Background opacity",
     REPORT_DETAIL_HEADER = "ForeverMeter: %s, %s, %s",
     TIP_REPORT = "Right-click the breakdown title: send to chat",
 }
