@@ -176,6 +176,11 @@ slash("options"); ForeverMeterOptionSlider1.scripts.OnValueChanged(ForeverMeterO
 ForeverMeterOptionSlider5.scripts.OnValueChanged(ForeverMeterOptionSlider5, 24); assert(db.rowHeight == 24 and w1.bars[1].h == 24); ForeverMeterOptionSlider5.scripts.OnValueChanged(ForeverMeterOptionSlider5, 16)
 assert(w1.bgAlpha == 0.6); ForeverMeterOptionSlider6.scripts.OnValueChanged(ForeverMeterOptionSlider6, 0.5); assert(db.bgAlpha == 0.5 and w1.bgAlpha == 0.5 and ForeverMeterDetailFrame.bgAlpha == 0.5); ForeverMeterOptionSlider6.scripts.OnValueChanged(ForeverMeterOptionSlider6, 0.6)
 slash("font oswald"); eventsFrame.scripts.OnUpdate(eventsFrame, 1); eventsFrame.scripts.OnUpdate(eventsFrame, 1); slash("font default")
+slash("mode damage"); slash("test"); assert(w1.title.text == "Dégâts · mode test" and w1.bars[3].shown and w1.bars[1].left.text == "1. WARRIOR" and not w1.bars[1].sourceGuid, w1.title.text)
+slash("test"); assert(w1.title.text:find("Combat actuel") and w1.bars[1].left.text == "1. Moi" and not w1.bars[3].shown, w1.title.text)
+assert(BINDING_HEADER_FOREVERMETER == "ForeverMeter" and BINDING_NAME_FOREVERMETER_RESET == "Remettre les données à zéro")
+ForeverMeter_Reset(); assert(calls.reset == 1); calls.reset = nil
+ForeverMeter_NextMode(); assert(db.windows[1].mode == "heal", db.windows[1].mode); slash("mode damage")
 slash("toggle"); assert(not w1.shown and not ForeverMeterFrame2.shown)
 ForeverMeter_Toggle(); assert(w1.shown and ForeverMeterFrame2.shown)
 slash("aide")

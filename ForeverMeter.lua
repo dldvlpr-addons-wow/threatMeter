@@ -867,11 +867,27 @@ local function RenderDetail()
 	end
 end
 
+-- Mode test (/fm test) : fausses barres pour régler l'apparence sans combat. Ni rapport ni détail.
+local testMode = false
+local TEST_CLASSES = { "WARRIOR", "MAGE", "PRIEST", "ROGUE", "HUNTER", "DRUID", "PALADIN", "WARLOCK", "SHAMAN" }
+local function TestSession()
+	local list, total = {}, 0
+	for i, class in ipairs(TEST_CLASSES) do
+		local amount = 100000 - (i - 1) * 9000
+		local name = LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[class] or class
+		list[i] = { name = name, classFilename = class, totalAmount = amount, amountPerSecond = amount / 60 }
+		total = total + amount
+	end
+	return { combatSources = list, maxAmount = list[1].totalAmount, totalAmount = total }
+end
+
 local function RenderMeter(win)
-	local session = ReadSession(win)
+	local session = testMode and TestSession() or ReadSession(win)
 	local mode = win.cfg.mode
 	win.title:SetText(FM.MODE_INFO[mode].label .. " · " .. SessionLabel(win, session))
-	if not DamageMeter or (DamageMeter.IsDamageMeterAvailable and not DamageMeter.IsDamageMeterAvailable()) then
+	if testMode then
+		win.title:SetText(FM.MODE_INFO[mode].label .. " · " .. L.SESSION_TEST)
+	elseif not DamageMeter or (DamageMeter.IsDamageMeterAvailable and not DamageMeter.IsDamageMeterAvailable()) then
 		win.title:SetText(FM.MODE_INFO[mode].label .. " · " .. L.METER_UNAVAILABLE)
 	end
 	local list = Sources(session)
@@ -1306,7 +1322,10 @@ local function ToggleWindows()
 	for i = 1, #db.windows do windows[i]:SetShown(not shown) end
 	if shown then detail:Hide() end
 end
-_G.ForeverMeter_Toggle = ToggleWindows -- AddonCompartmentFunc (.toc)
+_G.ForeverMeter_Toggle = ToggleWindows -- AddonCompartmentFunc (.toc) et Bindings.xml
+-- Raccourcis clavier (Bindings.xml) : comme /fm reset et un clic sur le titre de la première fenêtre.
+_G.ForeverMeter_Reset = function() ResetData(); Print(L.MSG_RESET) end
+_G.ForeverMeter_NextMode = function() CycleMode(windows[1], 1); Refresh() end
 
 -- Affichage automatique (db.autoHide) : visible en combat ou en groupe, masqué 10 s après la fin du combat en solo.
 local autoHideIn
@@ -1327,6 +1346,11 @@ local function ApplyLanguage()
 		f.resetButton:SetText(L.BTN_RESET)
 		f.menuButton:SetText(L.BTN_MENU)
 	end
+	-- Libellés de l'écran des raccourcis, lus à son ouverture.
+	BINDING_HEADER_FOREVERMETER = "ForeverMeter"
+	BINDING_NAME_FOREVERMETER_TOGGLE = L.BINDING_TOGGLE
+	BINDING_NAME_FOREVERMETER_RESET = L.BINDING_RESET
+	BINDING_NAME_FOREVERMETER_NEXT_MODE = L.BINDING_NEXT_MODE
 	return code
 end
 
@@ -1720,6 +1744,10 @@ SlashCmdList.FOREVERMETER = function(input)
 	elseif cmd == "warn" and num then db.warnPct = math.max(1, math.min(130, math.floor(num))); Print(string.format(L.MSG_WARN, db.warnPct))
 	elseif cmd == "sound" then db.warnSound = not db.warnSound; Print(string.format(L.MSG_SOUND, db.warnSound and L.WORD_ON or L.WORD_OFF))
 	elseif cmd == "pets" then db.showPets = not db.showPets; Print(string.format(L.MSG_PETS, db.showPets and L.WORD_SHOWN or L.WORD_HIDDEN))
+	elseif cmd == "test" then
+		testMode = not testMode
+		if testMode then for i = 1, #db.windows do windows[i]:Show() end end
+		Print(string.format(L.MSG_TEST, testMode and L.WORD_ON or L.WORD_OFF))
 	elseif cmd == "texture" then
 		local list = FM.MediaList("statusbar")
 		local name = FM.FindMedia(list, arg)

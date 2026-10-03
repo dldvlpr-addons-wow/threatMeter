@@ -6,13 +6,13 @@ Single Lua file, no dependencies.
 > **Warning: restart the game before launching ForeverMeter** after installing or updating it.
 > `/reload` is not enough: the game only loads new texture and font files at startup.
 
-## New in 1.5.0
-- **Options panel**: Options → AddOns → ForeverMeter, `/fm options`, or **Options** in a window menu.
-- **6 bar textures** and **6 bundled fonts**, plus the game fonts and LibSharedMedia media when available.
-- **Compare two players**: open a breakdown, then Shift-click another bar (out of combat).
-- **New modes**: enemy damage taken, avoidable damage taken.
-- **New windows** keep the size of their parent and never overlap another window.
-- **Breakdown** in its own movable panel. Resize grip in both bottom corners. Animated bars.
+## New in 1.6.0
+- **Auto show** (option): windows only in combat or in a group.
+- **Bar text columns**: show or hide total, per second and percent.
+- **Bar height** and **background opacity** sliders in the options panel.
+- **Chat report from the breakdown**: right-click the breakdown title (out of combat).
+- **Test mode** (`/fm test`): fake bars to tune the look without a fight.
+- **Key bindings**: show or hide the windows, reset, next mode.
 
 See [CHANGELOG.md](CHANGELOG.md) for details.
 
@@ -56,6 +56,8 @@ Install from CurseForge or Wago, or copy the folder into
 - Bar textures (`blizzard`, `flat`, `gradient`, `glass`, `striped`, `fade`) and fonts (six bundled OFL fonts plus
   the game fonts). Textures and fonts from LibSharedMedia are listed too when another addon loads it.
 - Animated bar fill.
+- Test mode (`/fm test`): fake bars in the meter windows, to tune the look without a fight.
+- Key bindings (Options → Key Bindings → ForeverMeter): show or hide the windows, reset, next mode of the first window.
 - Auto show: windows only in combat or in a group, hidden 10 s after a solo fight (option).
 - Threat: visual and sound warning above an adjustable threshold (`/fm warn 90`).
 - Chat report (`/fm report 5`): raid, party or say depending on context. Right-click the breakdown title
@@ -68,7 +70,7 @@ Install from CurseForge or Wago, or copy the folder into
 /fm mode <damage|heal|absorbs|taken|enemytaken|avoidable|interrupts|dispels|deaths|threat>
 /fm report [N] | reset | lock | unlock | toggle | options
 /fm texture [name] | font [name] [size] | font default
-/fm windows <1-4> | refresh <s> | scale <x> | rows <n> | width <px> | warn <%> | sound | pets | defaults
+/fm windows <1-4> | refresh <s> | scale <x> | rows <n> | width <px> | warn <%> | sound | pets | test | defaults
 /fm lang [auto|enUS|frFR|deDE|esES|esMX|itIT|ptBR|ruRU|koKR|zhCN|zhTW]
 /fm debug   (raw C_DamageMeter values, to diagnose a display issue)
 ```

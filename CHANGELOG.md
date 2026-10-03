@@ -1,6 +1,6 @@
 # ForeverMeter
 
-## Unreleased
+## 1.6.0
 
 ### New
 - **Auto show** (option): windows show in combat or in a group, and hide 10 s after a solo fight.
@@ -10,6 +10,10 @@
   to raid, party or say. With a comparison open, the compared lines (`12.3k | 9.8k (+26%)`) are sent. Out of combat only.
 - **Bar height** (options panel): slider from 10 to 40 px. Windows keep their number of rows.
 - **Background opacity** (options panel): slider from 0 (transparent) to 1, for the meter windows and the breakdown.
+- **Test mode** (`/fm test`): fake bars in the meter windows, to tune texture, font, height and opacity without a fight.
+  Threat windows are not affected. Off again after a reload.
+- **Key bindings** (Options → Key Bindings → ForeverMeter): show or hide the windows, reset the data,
+  next mode of the first window. No key is set by default.
 
 ### Fixed
 - Chat report: a line holding a secret name (creature session in an instance) is shown locally instead of raising.

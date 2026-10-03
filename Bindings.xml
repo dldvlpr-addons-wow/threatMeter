@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="FOREVERMETER_TOGGLE" category="BINDING_HEADER_FOREVERMETER">ForeverMeter_Toggle()</Binding>
+	<Binding name="FOREVERMETER_RESET" category="BINDING_HEADER_FOREVERMETER">ForeverMeter_Reset()</Binding>
+	<Binding name="FOREVERMETER_NEXT_MODE" category="BINDING_HEADER_FOREVERMETER">ForeverMeter_NextMode()</Binding>
+</Bindings>

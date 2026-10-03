@@ -45,7 +45,7 @@ NS.Locales.enUS = {
     WORD_OFF = "off",
     WORD_SHOWN = "shown",
     WORD_HIDDEN = "hidden",
-    HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | texture | font | lang | options | defaults",
+    HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | test | texture | font | lang | options | defaults",
     HELP_2 = "Menu button or right-click the title: choose mode and session. Reset button: clear. Click a bar = per-spell details. Mouse wheel = scroll. Bottom-right grip = resize.",
     MENU_WINDOWS = "Windows",
     MENU_LOCK = "Lock position",
@@ -82,4 +82,9 @@ NS.Locales.enUS = {
     OPT_BG_ALPHA = "Background opacity",
     REPORT_DETAIL_HEADER = "ForeverMeter: %s, %s, %s",
     TIP_REPORT = "Right-click the breakdown title: send to chat",
+    SESSION_TEST = "test mode",
+    MSG_TEST = "test mode %s",
+    BINDING_TOGGLE = "Show or hide the windows",
+    BINDING_RESET = "Reset the data",
+    BINDING_NEXT_MODE = "Next mode (first window)",
 }

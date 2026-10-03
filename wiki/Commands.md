@@ -19,11 +19,14 @@
 | `/fm warn <%>` | Threat warning threshold (1 to 130, default 90) |
 | `/fm sound` | Turns the threat warning sound on or off |
 | `/fm pets` | Shows or hides pets in the threat list |
+| `/fm test` | Turns test mode on or off: fake bars in the meter windows, to tune the look without a fight. Off again after a reload |
 | `/fm lang [code]` | Forces a language (`enUS`, `frFR`, `deDE`, `esES`, `esMX`, `itIT`, `ptBR`, `ruRU`, `koKR`, `zhCN`, `zhTW`). `auto` goes back to the client language. No argument shows the current one. |
 | `/fm options` | Opens the options panel (also `/fm config`) |
 | `/fm texture [name]` | Bar texture: `blizzard`, `flat`, `gradient`, `glass`, `striped`, `fade`, plus LibSharedMedia textures. No argument lists them. |
 | `/fm font [name] [size]` | Bar font and size (6 to 24). `/fm font 12` changes the size only, `/fm font default` goes back to the game font. No argument lists the fonts. |
 | `/fm defaults` | Resets all settings to their default values |
 | `/fm debug` | Prints raw `C_DamageMeter` values, to diagnose a display issue |
+
+Key bindings (Options → Key Bindings → ForeverMeter, no key by default): show or hide the windows, reset the data, next mode of the first window.
 
 `mode`, `report` and `debug` apply to the first window. Set the other windows from their own menu.
