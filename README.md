@@ -6,7 +6,7 @@ Single Lua file, no dependencies.
 > **Warning: restart the game before launching ForeverMeter** after installing or updating it.
 > `/reload` is not enough: the game only loads new texture and font files at startup.
 
-## New in 1.6.0
+## New in 1.9.0
 - **Auto show** (option): windows only in combat or in a group.
 - **Bar text columns**: show or hide total, per second and percent.
 - **Bar height** and **background opacity** sliders in the options panel.
