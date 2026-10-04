@@ -263,6 +263,10 @@ w2.menuButton.scripts.OnClick(w2.menuButton)
 Call("Soins"); assert(db.windows[2].mode == "heal" and w2.title.text:find("Soins"))
 Call("Ogre"); assert(db.windows[2].view == 12 and w2.title.text:find("Ogre"), w2.title.text)
 Call("Global"); assert(db.windows[2].view == "overall")
+-- Copier en texte : en-tête et une ligne par source ; en combat (secret) rien ne s'ouvre
+Call("Copier en texte"); local copy = ForeverMeterCopyFrame
+assert(copy.shown and copy.box.text:find("^ForeverMeter") and copy.box.text:find("\n1%. Moi") and copy.box.text:find("\n2%. "), copy.box.text)
+copy:Hide(); secretMode = true; Call("Copier en texte"); secretMode = false; assert(not copy.shown, "copie en combat refusée")
 w1.menuButton.scripts.OnClick(w1.menuButton)
 Call("Remise à zéro"); assert(calls.reset == 1 and db.windows[2].view == "current")
 -- Clic gauche titre = mode suivant ; molette

@@ -6,6 +6,9 @@ Single Lua file, no dependencies.
 > **Warning: restart the game before launching ForeverMeter** after installing or updating it.
 > `/reload` is not enough: the game only loads new texture and font files at startup.
 
+## New in 1.10.0
+- **Copy as text** (window menu): the window's lines in a box, ready for Ctrl+C and a paste into Discord (out of combat).
+
 ## New in 1.9.0
 - **Auto show** (option): windows only in combat or in a group.
 - **Bar text columns**: show or hide total, per second and percent.
@@ -40,7 +43,7 @@ Install from CurseForge or Wago, or copy the folder into
 - Size: grips in the bottom-right and bottom-left corners of each window (width and number of rows, per window).
   `/fm rows` and `/fm width` set a shared size and clear per-window sizes.
 - Sessions: current fight, overall, or any fight kept by the client.
-- **Menu** button (or right-click on the title): mode, session, lock, windows. **Reset** button: clears data.
+- **Menu** button (or right-click on the title): mode, session, lock, windows, copy as text. **Reset** button: clears data.
 - Padlock in the title bar: locks position and size of that window only (`/fm lock` / `unlock`: all windows).
 - Hover a bar: top 5 spells of that source. Click: per-spell breakdown (icon, total, per second). Mouse wheel: scroll.
   The breakdown is a separate panel above the meter windows; drag its title to move it, its position is kept.

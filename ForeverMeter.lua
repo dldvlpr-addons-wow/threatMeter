@@ -1102,6 +1102,62 @@ local function CloseWindow(win)
 end
 
 -- Entrées du menu sous forme neutre : { text, checked(), func [, checkbox] } ou { title } ou { divider }.
+-- Lignes du report d'une fenêtre (chat et copie en texte) ; nil et le message à afficher si rien n'est rapportable.
+local function ReportLines(win, count)
+	if win.cfg.mode == "threat" then return nil, L.REPORT_NOTHING_THREAT end
+	local session = ReadSession(win)
+	local list = Sources(session)
+	if not list[1] then return nil, L.REPORT_NOTHING end
+	if issecretvalue(list[1].totalAmount) then return nil, L.REPORT_OUT_OF_COMBAT end
+	local lines = { string.format(L.REPORT_HEADER, FM.MODE_INFO[win.cfg.mode].label, SessionLabel(win, session)) }
+	for i = 1, math.min(count, #list) do
+		local s = list[i]
+		lines[#lines + 1] = string.format("%d. %s  %s", i, s.name, FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), session.totalAmount, false, db.columns))
+	end
+	return lines
+end
+
+-- Copie en texte (menu de la fenêtre) : toutes les lignes du report, sélectionnées, pour un Ctrl+C vers Discord.
+-- Une ligne secrète (nom de créature en instance) ne peut pas aller dans la zone de saisie : elle est omise.
+local copyFrame
+local function CopyWindow(win)
+	local lines, err = ReportLines(win, math.huge)
+	if not lines then Print(err); return end
+	local plain = {}
+	for _, line in ipairs(lines) do
+		if not issecretvalue(line) then plain[#plain + 1] = line end
+	end
+	if not plain[2] then Print(L.REPORT_NOTHING); return end
+	if not copyFrame then
+		copyFrame = MakeWindow("ForeverMeterCopyFrame", 340, 220)
+		copyFrame:SetFrameStrata("DIALOG")
+		copyFrame:SetPoint("CENTER")
+		copyFrame:SetBackdropColor(0, 0, 0, 0.9)
+		copyFrame.header:SetScript("OnDragStart", function() copyFrame:StartMoving() end)
+		copyFrame.header:SetScript("OnDragStop", function()
+			copyFrame:StopMovingOrSizing()
+			copyFrame:SetUserPlaced(false)
+		end)
+		local scroll = CreateFrame("ScrollFrame", nil, copyFrame, "UIPanelScrollFrameTemplate")
+		scroll:SetPoint("TOPLEFT", 6, -24)
+		scroll:SetPoint("BOTTOMRIGHT", -28, 6)
+		local box = CreateFrame("EditBox", nil, scroll)
+		box:SetMultiLine(true)
+		box:SetAutoFocus(false)
+		box:SetFontObject(ChatFontNormal)
+		box:SetWidth(300)
+		box:SetScript("OnEscapePressed", function() copyFrame:Hide() end)
+		scroll:SetScrollChild(box)
+		copyFrame.box = box
+		if UISpecialFrames then table.insert(UISpecialFrames, "ForeverMeterCopyFrame") end
+	end
+	copyFrame.title:SetText(L.COPY_HINT)
+	copyFrame:Show()
+	copyFrame.box:SetText(table.concat(plain, "\n"))
+	copyFrame.box:SetFocus()
+	copyFrame.box:HighlightText()
+end
+
 local function MenuEntries(win)
 	local entries = { { title = L.MENU_DISPLAY } }
 	for _, m in ipairs(FM.MODES) do
@@ -1121,6 +1177,7 @@ local function MenuEntries(win)
 	if #db.windows < FM.MAX_WINDOWS then entries[#entries + 1] = { text = L.MENU_NEW_WINDOW, func = function() AddWindow(win) end } end
 	if #db.windows > 1 then entries[#entries + 1] = { text = L.MENU_CLOSE_WINDOW, func = function() CloseWindow(win) end } end
 	entries[#entries + 1] = { divider = true }
+	entries[#entries + 1] = { text = L.MENU_COPY, func = function() CopyWindow(win) end }
 	entries[#entries + 1] = { text = L.MENU_OPTIONS, func = function() OpenOptions() end }
 	entries[#entries + 1] = { text = L.MENU_RESET, func = ResetData }
 	return entries
@@ -1467,16 +1524,9 @@ local function ChatSend(msg)
 end
 
 local function Report(win, count)
-	if win.cfg.mode == "threat" then Print(L.REPORT_NOTHING_THREAT); return end
-	local session = ReadSession(win)
-	local list = Sources(session)
-	if not list[1] then Print(L.REPORT_NOTHING); return end
-	if issecretvalue(list[1].totalAmount) then Print(L.REPORT_OUT_OF_COMBAT); return end
-	ChatSend(string.format(L.REPORT_HEADER, FM.MODE_INFO[win.cfg.mode].label, SessionLabel(win, session)))
-	for i = 1, math.min(count, #list) do
-		local s = list[i]
-		ChatSend(string.format("%d. %s  %s", i, s.name, FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), session.totalAmount, false, db.columns)))
-	end
+	local lines, err = ReportLines(win, count)
+	if not lines then Print(err); return end
+	for _, line in ipairs(lines) do ChatSend(line) end
 end
 
 -- Report des sorts de la source ouverte dans le panneau de détail : clic droit sur son titre.

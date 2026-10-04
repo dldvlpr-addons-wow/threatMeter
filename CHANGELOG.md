@@ -1,5 +1,12 @@
 # ForeverMeter
 
+## 1.10.0
+
+### New
+- **Copy as text** (window menu): opens a box with the window's lines already selected; Ctrl+C to copy them,
+  for a paste into Discord, Escape to close. Out of combat only: amounts are secret in combat.
+  Lines holding a secret name (creature in an instance) are left out.
+
 ## 1.9.0
 
 ### New

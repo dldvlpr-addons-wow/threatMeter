@@ -87,4 +87,6 @@ NS.Locales.enUS = {
     BINDING_TOGGLE = "Show or hide the windows",
     BINDING_RESET = "Reset the data",
     BINDING_NEXT_MODE = "Next mode (first window)",
+    MENU_COPY = "Copy as text",
+    COPY_HINT = "Ctrl+C to copy, Escape to close",
 }
