@@ -1,5 +1,17 @@
 # ForeverMeter
 
+## 1.10.1
+
+### Fixed
+- Damage per second no longer drops after the target dies: meter windows now update when the game sends new data,
+  like the Blizzard meter, instead of every 0.2 s.
+- With two threat windows, the second one showed 0/s.
+- Threat per second no longer shows a false spike on the first update after a target change.
+- The threat warning sound plays again on a new target.
+
+### Changed
+- Less work out of combat and in raids: windows are redrawn only when their data changes, and group units are cached.
+
 ## 1.10.0
 
 ### New

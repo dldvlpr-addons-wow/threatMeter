@@ -44,8 +44,9 @@ SOUNDKIT = { RAID_WARNING = 1 }
 GetLocale = function() return "frFR" end
 cursorX, cursorY = 0, 0
 GetCursorPosition = function() return cursorX, cursorY end
-GetTime = function() return os.clock() end
-PlaySound = function() end
+local testClock, testThreat, testTanking, sounds = nil, nil, true, 0 -- forcés par le test des deux fenêtres de menace (GetTime et la menace sont des locales de l'addon)
+GetTime = function() return testClock or os.clock() end
+PlaySound = function() sounds = sounds + 1 end
 date = os.date
 wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 unpack = unpack or table.unpack
@@ -53,13 +54,14 @@ UnitGUID = function(u) return "Player-" .. u end
 UnitName = function(u) return u == "player" and "Moi" or u end
 UnitClass = function() return "Guerrier", "WARRIOR" end
 UnitExists = function(u) return u == "player" or u == "target" or u == "party1" end
-UnitAffectingCombat = function() return false end
+local testCombat = false
+UnitAffectingCombat = function() return testCombat end
 UnitCanAttack = function() return true end
 UnitIsDead = function() return false end
 UnitIsUnit = function(a, b) return a == b end
 shiftDown = false
 IsShiftKeyDown = function() return shiftDown end
-UnitDetailedThreatSituation = function(u) return u == "player", 3, 95, 95, 1000 end
+UnitDetailedThreatSituation = function(u) return u == "player" and testTanking, 3, 95, 95, testThreat or 1000 end
 IsInRaid = function() return false end
 local inGroup = true
 IsInGroup = function() return inGroup end
@@ -131,6 +133,11 @@ assert(loadfile("Mirror.lua"))("ForeverMeter", NS)
 assert(loadfile("ForeverMeter.lua"))("ForeverMeter", NS)
 FM = ForeverMeter
 for _, f in ipairs(created) do if f.scripts.OnEvent and f.scripts.OnUpdate then eventsFrame = f end end
+-- Hors combat, l'OnUpdate ne redessine qu'après un événement du compteur : Tick() simule une mise à jour des données.
+local function Tick()
+	eventsFrame.scripts.OnEvent(eventsFrame, "DAMAGE_METER_CURRENT_SESSION_UPDATED")
+	eventsFrame.scripts.OnUpdate(eventsFrame, 1)
+end
 assert(eventsFrame, "frame events introuvable")
 local function Fire(e, a) eventsFrame.scripts.OnEvent(eventsFrame, e, a) end
 Fire("ADDON_LOADED", "Autre")
@@ -163,6 +170,21 @@ slash("mode damage")
 assert(db.windows[1].mode == "damage" and w1.title.text:find("Dégâts"), w1.title.text)
 slash("mode threat")
 assert(w1.title.text:find("Menace") and w1.bars[1].left.text == "> Moi", w1.title.text .. " / " .. tostring(w1.bars[1].left.text))
+-- Deux fenêtres de menace : même débit dans les deux (même GetTime() dans un tour)
+testClock, testThreat = 100, 1000
+ForeverMeterFrame2.cfg.mode = "threat"; Tick()
+testClock, testThreat = 101, 1500; Tick()
+assert(w1.bars[1].right.text:find("500/s") and ForeverMeterFrame2.bars[1].right.text == w1.bars[1].right.text, w1.bars[1].right.text .. " / " .. ForeverMeterFrame2.bars[1].right.text)
+-- Changement de cible : pas de débit calculé entre la menace sur l'ancienne cible et la nouvelle
+Fire("PLAYER_TARGET_CHANGED"); testClock, testThreat = 102, 5000; Tick()
+assert(w1.bars[1].right.text:find(" 0/s"), w1.bars[1].right.text)
+-- Alerte sonore : une fois par cible au-dessus du seuil, rejouée après un changement de cible
+testTanking, sounds = false, 0; Tick(); Tick()
+assert(sounds == 1, "alerte jouée une seule fois : " .. sounds)
+Fire("PLAYER_TARGET_CHANGED"); Tick()
+assert(sounds == 2, "alerte rejouée sur la nouvelle cible : " .. sounds)
+testClock, testThreat, testTanking = nil, nil, true
+ForeverMeterFrame2.cfg.mode = "damage"
 slash("mode deaths")
 assert(w1.bars[1].right.text == "2.0k · 0:42", w1.bars[1].right.text)
 slash("report 2")
@@ -219,9 +241,14 @@ d.header.scripts.OnClick(d.header, "RightButton")
 assert(#sent == 3 and sent[1] == "PARTY> ForeverMeter : Moi, Dégâts, Combat actuel" and sent[2] == "PARTY> 1. Sort1  1.2k (3/s, 60.0%)", table.concat(sent, " ; "))
 SendChatMessage = realSend
 -- Colonnes du texte de droite : pourcentage puis total retirés ; les défauts de FormatRow restent intacts
+eventsFrame.scripts.OnUpdate(eventsFrame, 1) -- vide un redessin en attente (police)
 db.columns.percent = false; eventsFrame.scripts.OnUpdate(eventsFrame, 1)
+assert(w1.bars[1].right.text == "2.0k (200/s, 66.7%)", "hors combat sans événement : pas de redessin")
+testCombat = true; ForeverMeterFrame2.cfg.mode = "threat"; eventsFrame.scripts.OnUpdate(eventsFrame, 1); testCombat = false; ForeverMeterFrame2.cfg.mode = "damage"
+assert(w1.bars[1].right.text == "2.0k (200/s, 66.7%)", "en combat sans événement : pas de redessin, même avec une fenêtre de menace visible")
+Tick()
 assert(d.bars[1].right.text == "1.2k (3/s)" and w1.bars[1].right.text == "2.0k (200/s)", d.bars[1].right.text .. " / " .. w1.bars[1].right.text)
-db.columns.total = false; eventsFrame.scripts.OnUpdate(eventsFrame, 1)
+db.columns.total = false; Tick()
 assert(w1.bars[1].right.text == "200/s" and ForeverMeter.FormatRow(10, 1, 10, false) == "10 (1/s, 100.0%)", w1.bars[1].right.text)
 db.columns.total, db.columns.percent = true, true
 local w2 = ForeverMeterFrame2
@@ -242,8 +269,8 @@ sent = {}; SendChatMessage = function(msg, ch) sent[#sent + 1] = ch .. "> " .. m
 d.header.scripts.OnClick(d.header, "RightButton")
 assert(sent[1] == "PARTY> ForeverMeter : Moi vs Bob, Dégâts, Combat actuel" and sent[2] == "PARTY> 1. Sort1  1.2k | 600 (+100%)", table.concat(sent, " ; "))
 SendChatMessage = realSend
-secretMode = true; eventsFrame.scripts.OnUpdate(eventsFrame, 1); assert(d.title.text == "Moi : Dégâts", "en combat : détail simple")
-secretMode = false; eventsFrame.scripts.OnUpdate(eventsFrame, 1); assert(d.title.text == "Moi vs Bob : Dégâts")
+secretMode = true; Tick(); assert(d.title.text == "Moi : Dégâts", "en combat : détail simple")
+secretMode = false; Tick(); assert(d.title.text == "Moi vs Bob : Dégâts")
 shiftDown = true; w1.bars[2].scripts.OnMouseUp(w1.bars[2]); shiftDown = false
 assert(w1.compareGuid == nil and d.title.text == "Moi : Dégâts", "fin de comparaison")
 shiftDown = true; w1.bars[2].scripts.OnMouseUp(w1.bars[2]); shiftDown = false
@@ -273,6 +300,7 @@ Call("Remise à zéro"); assert(calls.reset == 1 and db.windows[2].view == "curr
 w1.header.scripts.OnClick(w1.header, "LeftButton"); assert(db.windows[1].mode == "heal")
 w1.scripts.OnMouseWheel(w1, -1); assert(w1.scrollOffset == 0, "2 sources, 3 lignes : pas de défilement")
 w1.header.scripts.OnDragStop(); assert(db.windows[1].point[4] == 10)
+eventsFrame.scripts.OnUpdate(eventsFrame, 1); assert(w1.bars[1].left.text ~= "", "textes réécrits après déplacement")
 
 -- Poignée : redimensionne la fenêtre 1 seule ; /fm rows remet la taille commune partout
 db.windows[1].locked = nil; w1.l, w1.t = 100, 500
@@ -327,9 +355,9 @@ w2.cfg.view = 12; Fire("DAMAGE_METER_RESET"); assert(w2.cfg.view == "current")
 
 -- Combat : valeurs secrètes, pas de tri ni d'arithmétique
 secretMode = true
-eventsFrame.scripts.OnUpdate(eventsFrame, 1)
+Tick()
 assert(w1.bars[1].right.text == "2000 (200.0/s)", w1.bars[1].right.text)
-db.columns.total = false; eventsFrame.scripts.OnUpdate(eventsFrame, 1); assert(w1.bars[1].right.text == "200.0/s", w1.bars[1].right.text); db.columns.total = true
+db.columns.total = false; Tick(); assert(w1.bars[1].right.text == "200.0/s", w1.bars[1].right.text); db.columns.total = true
 bar.scripts.OnEnter(bar)
 w1.bars[2].scripts.OnMouseUp(w1.bars[2]) -- GUID d'autrui secret : message chat, pas de détail
 assert(w1.selectedGuid == nil)

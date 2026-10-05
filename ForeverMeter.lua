@@ -88,7 +88,7 @@ local DEFAULTS = {
 	rowHeight = 16,
 	bgAlpha = 0.6,                        -- opacité du fond des fenêtres (0 = transparent)
 	warnPct = 90,
-	refresh = 0.2,                        -- secondes entre deux rafraîchissements (les événements C_DamageMeter rafraîchissent aussi)
+	refresh = 0.2,                        -- secondes entre deux rafraîchissements au plus, après un changement de données
 	warnSound = true,
 	showPets = true,
 	autoHide = false,                     -- fenêtres visibles seulement en combat ou en groupe
@@ -401,6 +401,14 @@ local DeathRecap = C_DeathRecap
 local db
 local windows = {}                        -- frames ; windows[i].cfg == db.windows[i] = { mode, view, point }
 local threatSamples = {}
+local needsRedraw = true                  -- données changées hors combat : l'OnUpdate redessine au prochain tour
+local pollUntil = 0                       -- GetTime() jusqu'auquel l'OnUpdate redessine encore après le combat
+
+-- Titre réécrit seulement s'il change. Un texte secret ne se compare pas : toujours posé.
+local function SetTitle(fs, text)
+	local current = fs:GetText()
+	if issecretvalue(text) or issecretvalue(current) or current ~= text then fs:SetText(text) end
+end
 local warnedGuid = nil                    -- partagé : deux fenêtres en mode menace ne jouent le son qu'une fois
 
 local function Print(msg)
@@ -520,22 +528,26 @@ end
 -- Menace (hors C_DamageMeter)
 ------------------------------------------------------------------------
 -- En raid, raid1..N contient déjà le joueur : "player" n'est ajouté qu'en solo ou en groupe.
-local function GroupUnits()
-	if IsInRaid() then
-		local units = {}
-		for i = 1, GetNumGroupMembers() do units[#units + 1] = "raid" .. i end
-		return units
-	end
-	local units = { "player" }
-	if IsInGroup() then
-		for i = 1, GetNumGroupMembers() - 1 do units[#units + 1] = "party" .. i end
-	end
-	return units
-end
-
 local function PetUnit(unit)
 	if unit == "player" then return "pet" end
 	return (unit:gsub("^(%a+)(%d+)$", "%1pet%2"))
+end
+
+-- Unités du groupe et leurs familiers, en cache jusqu'au prochain GROUP_ROSTER_UPDATE.
+local groupUnits, groupPets
+local function GroupUnits()
+	if groupUnits then return groupUnits, groupPets end
+	groupUnits, groupPets = {}, {}
+	if IsInRaid() then
+		for i = 1, GetNumGroupMembers() do groupUnits[#groupUnits + 1] = "raid" .. i end
+	else
+		groupUnits[1] = "player"
+		if IsInGroup() then
+			for i = 1, GetNumGroupMembers() - 1 do groupUnits[#groupUnits + 1] = "party" .. i end
+		end
+	end
+	for i, unit in ipairs(groupUnits) do groupPets[i] = PetUnit(unit) end
+	return groupUnits, groupPets
 end
 
 local function ThreatTarget()
@@ -545,30 +557,44 @@ local function ThreatTarget()
 	return nil
 end
 
-local function CollectThreat(enemy)
-	local list, now = {}, GetTime()
-	for _, unit in ipairs(GroupUnits()) do
-		local candidates = { unit }
-		if db.showPets then candidates[2] = PetUnit(unit) end
-		for _, u in ipairs(candidates) do
-			if UnitExists(u) then
-				local isTanking, status, pct, rawPct, value = UnitDetailedThreatSituation(u, enemy)
-				if status then
-					local guid = UnitGUID(u)
-					local _, class = UnitClass(u)
-					local tps = FM.ComputeTps(threatSamples[guid], value or 0, now)
-					threatSamples[guid] = { v = value or 0, t = now }
-					list[#list + 1] = {
-						name = UnitName(u) or u, class = class, guid = guid,
-						tanking = isTanking and true or false,
-						pct = isTanking and 100 or (rawPct or pct or 0), -- rawPct est faux pour le tank
-						value = value or 0, tps = tps, isPlayer = UnitIsUnit(u, "player"),
-					}
-				end
-			end
-		end
+-- Liste et lignes réutilisées d'un tour à l'autre : la liste rendue n'est valable que jusqu'au prochain appel.
+local threatList, threatRows = {}, {}
+
+local function AddThreatRow(u, enemy, now)
+	if not UnitExists(u) then return end
+	local isTanking, status, pct, rawPct, value = UnitDetailedThreatSituation(u, enemy)
+	if not status then return end
+	local guid = UnitGUID(u)
+	local _, class = UnitClass(u)
+	value = value or 0
+	-- Deux fenêtres de menace lisent la même unité au même GetTime() : le débit du premier passage est repris.
+	local sample = threatSamples[guid]
+	local tps
+	if sample and sample.t == now then
+		tps = sample.tps
+	else
+		tps = FM.ComputeTps(sample, value, now)
+		if sample then sample.v, sample.t, sample.tps = value, now, tps else threatSamples[guid] = { v = value, t = now, tps = tps } end
 	end
-	return FM.SortThreat(list)
+	local n = #threatList + 1
+	local row = threatRows[n] or {}
+	threatRows[n] = row
+	row.name, row.class, row.guid = UnitName(u) or u, class, guid
+	row.tanking = isTanking and true or false
+	row.pct = isTanking and 100 or (rawPct or pct or 0) -- rawPct est faux pour le tank
+	row.value, row.tps, row.isPlayer = value, tps, UnitIsUnit(u, "player")
+	threatList[n] = row
+end
+
+local function CollectThreat(enemy)
+	wipe(threatList)
+	local now = GetTime()
+	local units, pets = GroupUnits()
+	for i, unit in ipairs(units) do
+		AddThreatRow(unit, enemy, now)
+		if db.showPets then AddThreatRow(pets[i], enemy, now) end
+	end
+	return FM.SortThreat(threatList)
 end
 
 ------------------------------------------------------------------------
@@ -588,6 +614,7 @@ local function MakeWindow(name, w, h)
 	-- Frame nommée : StopMovingOrSizing la marque « placée par l'utilisateur » et le client restaure alors sa
 	-- taille depuis layout-local.txt après ADDON_LOADED, sans passer par Layout() : le cadre et les barres divergent.
 	f:SetUserPlaced(false)
+	f:HookScript("OnShow", function() needsRedraw = true end)
 	f:EnableMouse(true)
 	f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
 	f:SetBackdropColor(0, 0, 0, DEFAULTS.bgAlpha)
@@ -645,6 +672,7 @@ local appliedFont, fontRetryIn
 
 -- Place les barres pour `rows` lignes et `width` px sans toucher à la taille de la frame.
 local function LayoutBars(f, rows, width)
+	needsRedraw = true -- les textes sont vidés plus bas : l'OnUpdate les réécrit
 	f.rows = rows
 	-- Média introuvable (addon LibSharedMedia retiré) : défaut à l'affichage, le réglage reste pour son retour.
 	local _, texture = FM.FindMedia(FM.MediaList("statusbar"), db.barTexture)
@@ -884,12 +912,15 @@ end
 local function RenderMeter(win)
 	local session = testMode and TestSession() or ReadSession(win)
 	local mode = win.cfg.mode
-	win.title:SetText(FM.MODE_INFO[mode].label .. " · " .. SessionLabel(win, session))
+	local label
 	if testMode then
-		win.title:SetText(FM.MODE_INFO[mode].label .. " · " .. L.SESSION_TEST)
+		label = L.SESSION_TEST
 	elseif not DamageMeter or (DamageMeter.IsDamageMeterAvailable and not DamageMeter.IsDamageMeterAvailable()) then
-		win.title:SetText(FM.MODE_INFO[mode].label .. " · " .. L.METER_UNAVAILABLE)
+		label = L.METER_UNAVAILABLE
+	else
+		label = SessionLabel(win, session)
 	end
+	SetTitle(win.title, FM.MODE_INFO[mode].label .. " · " .. label)
 	local list = Sources(session)
 	local maxAmount = session and session.maxAmount or 1
 	local sessionTotal = session and session.totalAmount
@@ -932,11 +963,14 @@ end
 
 local function RenderThreat(win)
 	local enemy = ThreatTarget()
-	win.title:SetText(L.MODE_THREAT .. " · " .. (enemy and (UnitName(enemy) or "?") or L.THREAT_NO_TARGET))
-	local ok, list = pcall(function() return enemy and CollectThreat(enemy) or {} end)
-	if not ok then
-		win.title:SetText(L.MODE_THREAT .. " · " .. L.THREAT_UNAVAILABLE)
-		list = {}
+	local ok, list = true, threatList
+	if enemy then ok, list = pcall(CollectThreat, enemy) else wipe(threatList) end
+	if ok then
+		SetTitle(win.title, L.MODE_THREAT .. " · " .. (enemy and (UnitName(enemy) or "?") or L.THREAT_NO_TARGET))
+	else
+		SetTitle(win.title, L.MODE_THREAT .. " · " .. L.THREAT_UNAVAILABLE)
+		wipe(threatList)
+		list = threatList
 	end
 	for i = 1, win.rows do
 		local bar, row = win.bars[i], list[i]
@@ -964,6 +998,7 @@ local function RenderThreat(win)
 end
 
 local function Refresh()
+	needsRedraw = false
 	for i = 1, #db.windows do
 		local win = windows[i]
 		if win:IsShown() then
@@ -1448,6 +1483,7 @@ events:SetScript("OnUpdate", function(_, elapsed)
 			fontRetryIn = nil
 			Layout()
 			elapsedSince = db.refresh -- Refresh() juste en dessous réécrit les textes vidés par Layout()
+			needsRedraw = true
 		end
 	end
 	if autoHideIn then
@@ -1459,8 +1495,18 @@ events:SetScript("OnUpdate", function(_, elapsed)
 		end
 	end
 	if not db or elapsedSince < db.refresh then return end
+	-- Compteur redessiné sur événement seulement, comme celui de Blizzard : relu en continu, le /s du client
+	-- baisse après la mort de la cible (total divisé par une durée qui court jusqu'à la fin du combat).
+	-- La menace suit la cible, elle est redessinée tant qu'une fenêtre de menace est visible.
 	elapsedSince = 0
-	Refresh()
+	if needsRedraw or GetTime() < pollUntil then
+		Refresh()
+		return
+	end
+	for i = 1, #db.windows do
+		local win = windows[i]
+		if win:IsShown() and win.cfg.mode == "threat" then RenderThreat(win) end
+	end
 end)
 
 Register(events, "ADDON_LOADED")
@@ -1471,6 +1517,9 @@ Register(events, "PLAYER_REGEN_DISABLED")
 Register(events, "DAMAGE_METER_CURRENT_SESSION_UPDATED")
 Register(events, "DAMAGE_METER_COMBAT_SESSION_UPDATED")
 Register(events, "DAMAGE_METER_RESET")
+Register(events, "ADDON_RESTRICTION_STATE_CHANGED") -- montants lisibles à nouveau : redessin
+Register(events, "PLAYER_LEVEL_CHANGED")            -- disponibilité du compteur réévaluée
+Register(events, "PLAYER_TARGET_CHANGED")
 -- DAMAGE_METER_SESSION_EXPIRED n'existe pas sur WoW Forever 1.60 : non enregistré.
 events:SetScript("OnEvent", function(_, event, arg1)
 	if event == "ADDON_LOADED" then
@@ -1487,16 +1536,23 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		Refresh()
 	elseif not db then
 		return
+	elseif event == "PLAYER_TARGET_CHANGED" then
+		wipe(threatSamples) -- échantillons de l'ancienne cible : sinon faux débit au premier tour sur la nouvelle
+		warnedGuid = nil    -- alerte sonore rejouée sur la nouvelle cible
+		needsRedraw = true
 	elseif event == "GROUP_ROSTER_UPDATE" then
 		wipe(threatSamples)
+		groupUnits = nil
 		AutoShow(UnitAffectingCombat("player"))
 	elseif event == "PLAYER_REGEN_DISABLED" then
 		AutoShow(true)
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		warnedGuid = nil
+		pollUntil = GetTime() + 3 -- les montants peuvent rester secrets un court instant après le combat
 		AutoShow(false)
 		Refresh()
 	elseif event == "PLAYER_ENTERING_WORLD" then
+		groupUnits = nil
 		AutoShow(UnitAffectingCombat("player"))
 		Refresh()
 	elseif event == "DAMAGE_METER_RESET" then
@@ -1507,7 +1563,7 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		end
 		Refresh()
 	else
-		Refresh()
+		needsRedraw = true -- DAMAGE_METER_*_UPDATED : très fréquents en combat, redessinés par l'OnUpdate
 	end
 end)
 
