@@ -62,6 +62,7 @@ Install from CurseForge or Wago, or copy the folder into
 - Test mode (`/fm test`): fake bars in the meter windows, to tune the look without a fight.
 - Key bindings (Options → Key Bindings → ForeverMeter): show or hide the windows, reset, next mode of the first window.
 - Auto show: windows only in combat or in a group, hidden 10 s after a solo fight (option).
+- Auto reset: clear the data on entering an instance other than the last one, or on joining a group (option, off by default).
 - Threat: visual and sound warning above an adjustable threshold (`/fm warn 90`).
 - Chat report (`/fm report 5`): raid, party or say depending on context. Right-click the breakdown title
   to report that player's top 5 spells.

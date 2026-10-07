@@ -92,6 +92,7 @@ local DEFAULTS = {
 	warnSound = true,
 	showPets = true,
 	autoHide = false,                     -- fenêtres visibles seulement en combat ou en groupe
+	autoReset = false,                    -- remise à zéro à l'entrée dans une instance ou en rejoignant un groupe
 	columns = { total = true, perSecond = true, percent = true }, -- texte de droite des barres
 	locale = nil,                        -- nil = langue du client (GetLocale)
 	barTexture = "blizzard",              -- nom dans FM.BAR_TEXTURES
@@ -1431,6 +1432,22 @@ local function AutoShow(inCombat)
 	end
 end
 
+-- Remise à zéro automatique (db.autoReset) : entrée dans une autre instance que la dernière, ou passage de solo à groupe.
+-- La dernière instance est gardée en sortant : revenir après une mort ne remet pas à zéro. Connexion et /reload ne
+-- font que relever l'état.
+local lastInstanceID, wasInGroup
+local function AutoReset(onlyRecord)
+	if wasInGroup == nil then onlyRecord = true end -- premier appel, quel que soit l'événement : relevé seul
+	local _, instanceType, _, _, _, _, _, instanceID = GetInstanceInfo()
+	local newInstance = instanceType ~= "none" and instanceID ~= lastInstanceID
+	local joinedGroup = IsInGroup() and wasInGroup == false
+	if instanceType ~= "none" then lastInstanceID = instanceID end
+	wasInGroup = IsInGroup()
+	if onlyRecord or not db.autoReset or not (newInstance or joinedGroup) then return end
+	ResetData()
+	Print(L.MSG_RESET)
+end
+
 -- Applique la langue choisie (db.locale, sinon celle du client) et met à jour les textes déjà posés.
 local function ApplyLanguage()
 	local code = FM.ApplyLocale(db.locale or GetLocale())
@@ -1521,7 +1538,7 @@ Register(events, "ADDON_RESTRICTION_STATE_CHANGED") -- montants lisibles à nouv
 Register(events, "PLAYER_LEVEL_CHANGED")            -- disponibilité du compteur réévaluée
 Register(events, "PLAYER_TARGET_CHANGED")
 -- DAMAGE_METER_SESSION_EXPIRED n'existe pas sur WoW Forever 1.60 : non enregistré.
-events:SetScript("OnEvent", function(_, event, arg1)
+events:SetScript("OnEvent", function(_, event, arg1, arg2)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
 		-- WoW Forever ne relit pas la SavedVariables de compte : Mirror.lua fournit les replis.
@@ -1543,6 +1560,7 @@ events:SetScript("OnEvent", function(_, event, arg1)
 	elseif event == "GROUP_ROSTER_UPDATE" then
 		wipe(threatSamples)
 		groupUnits = nil
+		AutoReset()
 		AutoShow(UnitAffectingCombat("player"))
 	elseif event == "PLAYER_REGEN_DISABLED" then
 		AutoShow(true)
@@ -1553,6 +1571,7 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		Refresh()
 	elseif event == "PLAYER_ENTERING_WORLD" then
 		groupUnits = nil
+		AutoReset(arg1 or arg2) -- isInitialLogin, isReloadingUi
 		AutoShow(UnitAffectingCombat("player"))
 		Refresh()
 	elseif event == "DAMAGE_METER_RESET" then
@@ -1777,8 +1796,8 @@ do
 	OptionCheck(p, "OPT_COL_TOTAL", RIGHT, -256, function() return db.columns.total end, function(v) db.columns.total = v end)
 	OptionCheck(p, "OPT_COL_PER_SECOND", RIGHT, -286, function() return db.columns.perSecond end, function(v) db.columns.perSecond = v end)
 	OptionCheck(p, "OPT_COL_PERCENT", RIGHT, -316, function() return db.columns.percent end, function(v) db.columns.percent = v end)
-	OptionSlider(p, "OPT_ROW_HEIGHT", RIGHT, -400, 10, 40, 1, function() return db.rowHeight end, function(v) db.rowHeight = v end)
-	OptionSlider(p, "OPT_BG_ALPHA", RIGHT, -460, 0, 1, 0.05, function() return db.bgAlpha end, function(v) db.bgAlpha = v end)
+	OptionSlider(p, "OPT_ROW_HEIGHT", RIGHT, -440, 10, 40, 1, function() return db.rowHeight end, function(v) db.rowHeight = v end)
+	OptionSlider(p, "OPT_BG_ALPHA", RIGHT, -500, 0, 1, 0.05, function() return db.bgAlpha end, function(v) db.bgAlpha = v end)
 
 	OptionCheck(p, "OPT_SOUND", LEFT, -286, function() return db.warnSound end, function(v) db.warnSound = v end)
 	OptionCheck(p, "OPT_PETS", LEFT, -316, function() return db.showPets end, function(v) db.showPets = v end)
@@ -1789,10 +1808,11 @@ do
 		db.autoHide = v
 		if v then AutoShow(UnitAffectingCombat("player")) else for i = 1, #db.windows do windows[i]:Show() end end
 	end)
+	OptionCheck(p, "OPT_AUTO_RESET", LEFT, -406, function() return db.autoReset end, function(v) db.autoReset = v end)
 
 	local defaults = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
 	defaults:SetSize(200, 22)
-	defaults:SetPoint("TOPLEFT", LEFT, -422)
+	defaults:SetPoint("TOPLEFT", LEFT, -452)
 	defaults:SetScript("OnClick", function() ResetSettings(); ApplyOption() end)
 	refreshers[#refreshers + 1] = function() defaults:SetText(L.OPT_DEFAULTS) end
 

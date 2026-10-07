@@ -1,5 +1,11 @@
 # ForeverMeter
 
+## 1.11.0
+
+### New
+- **Automatic reset** (option, off by default): the data is cleared on entering an instance other than the last one,
+  or on joining a group. Coming back to the same instance after a death, a login or a /reload does not clear it.
+
 ## 1.10.1
 
 ### Fixed

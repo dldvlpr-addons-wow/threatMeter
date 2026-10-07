@@ -66,6 +66,8 @@ IsInRaid = function() return false end
 local inGroup = true
 IsInGroup = function() return inGroup end
 IsInInstance = function() return false end
+testInstance = nil -- instanceID courant, nil = monde ouvert
+GetInstanceInfo = function() return "Zone", testInstance and "party" or "none", 0, "", 5, 0, false, testInstance or 0 end
 GetNumGroupMembers = function() return 2 end
 SendChatMessage = function(msg, ch) print("  " .. ch .. "> " .. msg) end
 C_Spell = { GetSpellTexture = function() return 123 end, GetSpellName = function(id) return "Sort" .. id end }
@@ -139,7 +141,7 @@ local function Tick()
 	eventsFrame.scripts.OnUpdate(eventsFrame, 1)
 end
 assert(eventsFrame, "frame events introuvable")
-local function Fire(e, a) eventsFrame.scripts.OnEvent(eventsFrame, e, a) end
+local function Fire(e, a, b) eventsFrame.scripts.OnEvent(eventsFrame, e, a, b) end
 Fire("ADDON_LOADED", "Autre")
 Fire("ADDON_LOADED", "ForeverMeter")
 local db = ForeverMeterDB
@@ -426,4 +428,30 @@ Fire("GROUP_ROSTER_UPDATE")
 eventsFrame.scripts.OnUpdate(eventsFrame, 20)
 assert(ForeverMeterFrame.shown, "reste visible en groupe")
 db.autoHide = false
+
+-- Remise à zéro automatique : nouvelle instance ou passage solo -> groupe, pas au retour dans la même instance ni au /reload.
+calls.reset = nil
+inGroup = false
+Fire("GROUP_ROSTER_UPDATE")
+testInstance = 36
+Fire("PLAYER_ENTERING_WORLD", false, false)
+assert(not calls.reset, "option coupée : aucune remise à zéro")
+db.autoReset = true
+testInstance = nil
+Fire("PLAYER_ENTERING_WORLD", false, false)
+testInstance = 36
+Fire("PLAYER_ENTERING_WORLD", false, false)
+assert(not calls.reset, "même instance après une sortie : pas de remise à zéro")
+testInstance = 48
+Fire("PLAYER_ENTERING_WORLD", false, true)
+assert(not calls.reset, "/reload : pas de remise à zéro")
+testInstance = 43
+Fire("PLAYER_ENTERING_WORLD", false, false)
+assert(calls.reset == 1, "nouvelle instance : remise à zéro")
+inGroup = true
+Fire("GROUP_ROSTER_UPDATE")
+assert(calls.reset == 2, "groupe rejoint : remise à zéro")
+Fire("GROUP_ROSTER_UPDATE")
+assert(calls.reset == 2, "changement dans le groupe : pas de remise à zéro")
+db.autoReset = false
 print("uicheck OK")
