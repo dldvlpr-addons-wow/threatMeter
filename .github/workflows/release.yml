@@ -5,6 +5,9 @@ name: Release
 # Secrets du dépôt : CF_API_KEY, WAGO_API_TOKEN (GITHUB_TOKEN est fourni).
 # Identifiants de projet dans le .toc : ## X-Curse-Project-ID et ## X-Wago-ID.
 # Une plateforme sans secret ou sans identifiant est ignorée.
+# Discord : DISCORD_RELEASE_WEBHOOK reçoit l'annonce, DISCORD_CHANGELOG_WEBHOOK la section
+# du CHANGELOG.md pour la version (## x.y.z). Secrets du dépôt obligatoires : une variable
+# afficherait l'URL du webhook en clair dans le log. Absent = ignoré, échec d'envoi = warning.
 
 on:
   push:
@@ -24,3 +27,33 @@ jobs:
           fetch-depth: 0
 
       - uses: BigWigsMods/packager@v2
+
+      - name: Annonce Discord
+        env:
+          TAG: ${{ github.ref_name }}
+          RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          CHANGELOG_WEBHOOK: ${{ secrets.DISCORD_CHANGELOG_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          title="ForeverMeter $version"
+          url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
+          post() { curl -sS --fail-with-body -H "Content-Type: application/json" -d @- "$1"; }
+
+          if [ -n "$RELEASE_WEBHOOK" ]; then
+            jq -n --arg content "**$title** is out: $url" '{content: $content}' | post "$RELEASE_WEBHOOK" \
+              || echo "::warning::Échec de l'annonce Discord"
+          else
+            echo "::warning::DISCORD_RELEASE_WEBHOOK absent, annonce de release ignorée"
+          fi
+
+          notes=$(awk -v h="## $version" '$0 == h {f=1; next} f && /^## /{exit} f' CHANGELOG.md)
+          if [ -z "$CHANGELOG_WEBHOOK" ]; then
+            echo "::warning::DISCORD_CHANGELOG_WEBHOOK absent, changelog ignoré"
+          elif [ -z "$notes" ]; then
+            echo "::warning::Pas de section \"## $version\" dans CHANGELOG.md, changelog ignoré"
+          else
+            jq -n --arg title "$title" --arg url "$url" --arg notes "$notes" \
+              '{embeds: [{title: $title, url: $url, description: $notes[:4000]}]}' | post "$CHANGELOG_WEBHOOK" \
+              || echo "::warning::Échec de l'envoi du changelog Discord"
+          fi
