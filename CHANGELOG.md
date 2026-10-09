@@ -1,5 +1,10 @@
 # ForeverMeter
 
+## 1.11.2
+
+### New
+- **Mouse wheel on the title**: scroll down for the next mode, up for the previous one.
+
 ## 1.11.1
 
 ### Fixed

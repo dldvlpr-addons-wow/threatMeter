@@ -1333,6 +1333,12 @@ local function NewWindow(i)
 	f.header:SetScript("OnClick", function(self, button)
 		if button == "RightButton" then OpenMenu(f, self) else CycleMode(f, 1); Refresh() end
 	end)
+	-- Molette sur le titre : mode suivant vers le bas, précédent vers le haut.
+	f.header:EnableMouseWheel(true)
+	f.header:SetScript("OnMouseWheel", function(_, delta)
+		CycleMode(f, delta < 0 and 1 or -1)
+		Refresh()
+	end)
 	f:EnableMouseWheel(true)
 	f:SetScript("OnMouseWheel", function(_, delta)
 		f.scrollOffset = math.max(0, f.scrollOffset - delta)

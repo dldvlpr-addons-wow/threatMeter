@@ -458,6 +458,11 @@ assert(calls.reset == 2, "groupe rejoint : remise à zéro")
 Fire("GROUP_ROSTER_UPDATE")
 assert(calls.reset == 2, "changement dans le groupe : pas de remise à zéro")
 db.autoReset = false
+-- Molette sur le titre : bas = mode suivant, haut = retour
+slash("mode damage"); w1.header.scripts.OnMouseWheel(w1.header, -1); assert(db.windows[1].mode == "heal", db.windows[1].mode)
+w1.header.scripts.OnMouseWheel(w1.header, 1); assert(db.windows[1].mode == "damage")
+w1.header.scripts.OnMouseWheel(w1.header, 1); assert(db.windows[1].mode == ForeverMeter.MODES[#ForeverMeter.MODES], "boucle vers le dernier mode")
+slash("mode damage")
 InterfaceOptionsFrame_OpenToCategory = function() calls.openOptions = (calls.openOptions or 0) + 1 end
 testCombat = true; slash("options"); assert(not calls.openOptions, "en combat : pas d'ouverture")
 testCombat = false; Fire("PLAYER_REGEN_ENABLED"); assert(calls.openOptions == 1, "ouverture après le combat")

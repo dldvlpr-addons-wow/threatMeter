@@ -47,7 +47,7 @@ NS.Locales.enUS = {
     WORD_SHOWN = "shown",
     WORD_HIDDEN = "hidden",
     HELP_1 = "/fm mode %s | report [N] | reset | lock | unlock | toggle | scale | rows | width | windows N | refresh s | warn %% | sound | pets | test | texture | font | lang | options | defaults",
-    HELP_2 = "Menu button or right-click the title: choose mode and session. Reset button: clear. Click a bar = per-spell details. Mouse wheel = scroll. Bottom-right grip = resize.",
+    HELP_2 = "Menu button or right-click the title: choose mode and session. Reset button: clear. Click a bar = per-spell details. Mouse wheel = scroll, on the title = change mode. Bottom-right grip = resize.",
     MENU_WINDOWS = "Windows",
     MENU_LOCK = "Lock position",
     MENU_NEW_WINDOW = "New window",

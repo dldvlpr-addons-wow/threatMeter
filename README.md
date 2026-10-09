@@ -45,7 +45,7 @@ Install from CurseForge or Wago, or copy the folder into
 - Sessions: current fight, overall, or any fight kept by the client.
 - **Menu** button (or right-click on the title): mode, session, lock, windows, copy as text. **Reset** button: clears data.
 - Padlock in the title bar: locks position and size of that window only (`/fm lock` / `unlock`: all windows).
-- Hover a bar: top 5 spells of that source. Click: per-spell breakdown (icon, total, per second). Mouse wheel: scroll.
+- Hover a bar: top 5 spells of that source. Click: per-spell breakdown (icon, total, per second). Mouse wheel: scroll; over the title: change mode.
   The breakdown is a separate panel above the meter windows; drag its title to move it, its position is kept.
 - Shift-click a second bar while the breakdown is open: spell-by-spell comparison of both sources ("12.3k | 9.8k (+26%)"), out of combat only.
 - Specialization icon when the client provides one, class icon otherwise.
