@@ -37,11 +37,13 @@ jobs:
           set -euo pipefail
           version="${TAG#v}"
           title="ForeverMeter $version"
-          url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
+          curseforge="https://www.curseforge.com/wow/addons/forever-meter"
+          wago="https://addons.wago.io/addons/forever-details-meter-threat-damage-healing-and-more"
+          links="CurseForge: $curseforge"$'\n'"Wago: $wago"
           post() { curl -sS --fail-with-body -H "Content-Type: application/json" -d @- "$1"; }
 
           if [ -n "$RELEASE_WEBHOOK" ]; then
-            jq -n --arg content "**$title** is out: $url" '{content: $content}' | post "$RELEASE_WEBHOOK" \
+            jq -n --arg content "**$title** is out"$'\n'"$links" '{content: $content}' | post "$RELEASE_WEBHOOK" \
               || echo "::warning::Échec de l'annonce Discord"
           else
             echo "::warning::DISCORD_RELEASE_WEBHOOK absent, annonce de release ignorée"
@@ -53,7 +55,7 @@ jobs:
           elif [ -z "$notes" ]; then
             echo "::warning::Pas de section \"## $version\" dans CHANGELOG.md, changelog ignoré"
           else
-            jq -n --arg title "$title" --arg url "$url" --arg notes "$notes" \
-              '{embeds: [{title: $title, url: $url, description: $notes[:4000]}]}' | post "$CHANGELOG_WEBHOOK" \
+            jq -n --arg title "$title" --arg url "$curseforge" --arg notes "$notes" --arg links "$links" \
+              '{embeds: [{title: $title, url: $url, description: ($notes[:3900] + "\n\n" + $links)}]}' | post "$CHANGELOG_WEBHOOK" \
               || echo "::warning::Échec de l'envoi du changelog Discord"
           fi
