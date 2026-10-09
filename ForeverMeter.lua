@@ -193,9 +193,10 @@ end
 function FM.FormatRow(total, perSecond, sessionTotal, secret, columns)
 	columns = columns or DEFAULTS.columns
 	if secret then
-		-- Pas de test possible sur une valeur secrète : une décimale toujours, sinon %d tronque 0.8 en 0.
-		if columns.total and columns.perSecond then return string.format("%d (%.1f/s)", total, perSecond) end
-		if columns.total then return string.format("%d", total) end
+		-- Pas de test possible sur une valeur secrète : débit à une décimale toujours (0.8/s ne doit pas s'afficher 1).
+		-- Total en %.0f : %d lève sur un secret, %.0f l'accepte.
+		if columns.total and columns.perSecond then return string.format("%.0f (%.1f/s)", total, perSecond) end
+		if columns.total then return string.format("%.0f", total) end
 		if columns.perSecond then return string.format("%.1f/s", perSecond) end
 		return ""
 	end
@@ -260,11 +261,17 @@ function FM.ComputeTps(previous, value, now)
 	return tps > 0 and tps or 0
 end
 
--- Derniers événements d'un recap de mort (C_DeathRecap.GetRecapEvents), du plus ancien au plus récent.
--- Chaque ligne : { left = "-2.3s  Sort (source)", right = "-1.2k  35%" }. `spellName(id)` résout un ID de sort.
+-- Derniers événements d'un recap de mort (C_DeathRecap.GetRecapEvents), affichés du plus ancien au plus récent.
+-- Blizzard les rend du coup mortel au plus ancien : liste remise dans l'ordre d'après les timestamps.
+-- Chaque ligne : { left = "-2.3s  Sort (source)", right = "-1.2k  2.0k" }. `spellName(id)` résout un ID de sort.
 function FM.RecapLines(events, spellName, maxLines)
 	local lines = {}
 	if not events or #events == 0 then return lines end
+	if (events[1].timestamp or 0) > (events[#events].timestamp or 0) then
+		local reversed = {}
+		for i = #events, 1, -1 do reversed[#reversed + 1] = events[i] end
+		events = reversed
+	end
 	maxLines = maxLines or FM.RECAP_LINES
 	local last = events[#events].timestamp or 0
 	for i = math.max(1, #events - maxLines + 1), #events do
@@ -565,6 +572,11 @@ local function AddThreatRow(u, enemy, now)
 	if not UnitExists(u) then return end
 	local isTanking, status, pct, rawPct, value = UnitDetailedThreatSituation(u, enemy)
 	if not status then return end
+	-- Cible boss : valeurs secrètes, à faire échouer ici sous le pcall de RenderThreat (« menace indisponible »).
+	local isPlayer = UnitIsUnit(u, "player")
+	if issecretvalue(isTanking) or issecretvalue(pct) or issecretvalue(rawPct) or issecretvalue(value) or issecretvalue(isPlayer) then
+		error("secret threat values")
+	end
 	local guid = UnitGUID(u)
 	local _, class = UnitClass(u)
 	value = value or 0
@@ -583,7 +595,7 @@ local function AddThreatRow(u, enemy, now)
 	row.name, row.class, row.guid = UnitName(u) or u, class, guid
 	row.tanking = isTanking and true or false
 	row.pct = isTanking and 100 or (rawPct or pct or 0) -- rawPct est faux pour le tank
-	row.value, row.tps, row.isPlayer = value, tps, UnitIsUnit(u, "player")
+	row.value, row.tps, row.isPlayer = value, tps, isPlayer
 	threatList[n] = row
 end
 
@@ -1085,6 +1097,7 @@ end
 ------------------------------------------------------------------------
 local EnsureWindows -- défini plus bas, après NewWindow
 local OpenOptions   -- défini avec le panneau d'options, en fin de fichier
+local openOptionsAfterCombat = false
 
 local function ResetData()
 	if DamageMeter and DamageMeter.ResetAllCombatSessions then DamageMeter.ResetAllCombatSessions() end
@@ -1104,7 +1117,7 @@ local function AddWindow(parent)
 	local rects = {}
 	for i = 1, #db.windows do
 		local o = windows[i]
-		rects[i] = { o:GetLeft(), o:GetRight(), o:GetTop(), o:GetBottom() }
+		rects[i] = { o:GetLeft() or 0, o:GetRight() or 0, o:GetTop() or 0, o:GetBottom() or 0 }
 	end
 	local screen = { (UIParent:GetWidth() or 0) / db.scale, (UIParent:GetHeight() or 0) / db.scale }
 	local to, side = FM.FreeSide(rects, Width(parent), WindowHeight(Rows(parent)), screen, ANCHOR_GAP, parent.index)
@@ -1159,11 +1172,14 @@ local copyFrame
 local function CopyWindow(win)
 	local lines, err = ReportLines(win, math.huge)
 	if not lines then Print(err); return end
-	local plain = {}
-	for _, line in ipairs(lines) do
-		if not issecretvalue(line) then plain[#plain + 1] = line end
+	local plain, sources = {}, 0
+	for i, line in ipairs(lines) do
+		if not issecretvalue(line) then
+			plain[#plain + 1] = line
+			if i > 1 then sources = sources + 1 end
+		end
 	end
-	if not plain[2] then Print(L.REPORT_NOTHING); return end
+	if sources == 0 then Print(L.REPORT_NOTHING); return end
 	if not copyFrame then
 		copyFrame = MakeWindow("ForeverMeterCopyFrame", 340, 220)
 		copyFrame:SetFrameStrata("DIALOG")
@@ -1308,6 +1324,7 @@ local function NewWindow(i)
 	end)
 	f.header:SetScript("OnDragStop", function()
 		f:StopMovingOrSizing()
+		if f.cfg.locked then return end
 		f:SetUserPlaced(false)
 		f.OnMoved()
 		TrySnap(f)
@@ -1507,8 +1524,10 @@ events:SetScript("OnUpdate", function(_, elapsed)
 		autoHideIn = autoHideIn - elapsed
 		if autoHideIn <= 0 then
 			autoHideIn = nil
-			for i = 1, #db.windows do windows[i]:Hide() end
-			detail:Hide()
+			if db.autoHide then
+				for i = 1, #db.windows do windows[i]:Hide() end
+				detail:Hide()
+			end
 		end
 	end
 	if not db or elapsedSince < db.refresh then return end
@@ -1569,6 +1588,10 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
 		pollUntil = GetTime() + 3 -- les montants peuvent rester secrets un court instant après le combat
 		AutoShow(false)
 		Refresh()
+		if openOptionsAfterCombat then
+			openOptionsAfterCombat = false
+			OpenOptions()
+		end
 	elseif event == "PLAYER_ENTERING_WORLD" then
 		groupUnits = nil
 		AutoReset(arg1 or arg2) -- isInitialLogin, isReloadingUi
@@ -1595,7 +1618,11 @@ end)
 -- le refuse, la ligne est affichée en local.
 local function ChatSend(msg)
 	local channel = IsInRaid() and "RAID" or (IsInGroup() and "PARTY" or (IsInInstance() and "SAY" or nil))
-	if channel and not issecretvalue(msg) then SendChatMessage(msg, channel) else Print(msg) end
+	if channel and not issecretvalue(msg) then
+		(C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage)(msg, channel)
+	else
+		Print(msg)
+	end
 end
 
 local function Report(win, count)
@@ -1825,7 +1852,13 @@ do
 	end
 end
 
+-- C_SettingsUtil.OpenSettingsPanel est restreint : en combat, ouverture repoussée à PLAYER_REGEN_ENABLED.
 OpenOptions = function()
+	if InCombatLockdown() then
+		openOptionsAfterCombat = true
+		Print(L.OPTIONS_AFTER_COMBAT)
+		return
+	end
 	if optionsCategory then
 		Settings.OpenToCategory(optionsCategory:GetID())
 	elseif InterfaceOptionsFrame_OpenToCategory then

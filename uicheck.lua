@@ -56,6 +56,7 @@ UnitClass = function() return "Guerrier", "WARRIOR" end
 UnitExists = function(u) return u == "player" or u == "target" or u == "party1" end
 local testCombat = false
 UnitAffectingCombat = function() return testCombat end
+InCombatLockdown = function() return testCombat end
 UnitCanAttack = function() return true end
 UnitIsDead = function() return false end
 UnitIsUnit = function(a, b) return a == b end
@@ -301,6 +302,9 @@ Call("Remise à zéro"); assert(calls.reset == 1 and db.windows[2].view == "curr
 -- Clic gauche titre = mode suivant ; molette
 w1.header.scripts.OnClick(w1.header, "LeftButton"); assert(db.windows[1].mode == "heal")
 w1.scripts.OnMouseWheel(w1, -1); assert(w1.scrollOffset == 0, "2 sources, 3 lignes : pas de défilement")
+local lockedPoint = db.windows[1].point
+w1.header.scripts.OnDragStop(); assert(db.windows[1].point == lockedPoint, "fenêtre verrouillée : relâcher ne la déplace pas")
+db.windows[1].locked = nil
 w1.header.scripts.OnDragStop(); assert(db.windows[1].point[4] == 10)
 eventsFrame.scripts.OnUpdate(eventsFrame, 1); assert(w1.bars[1].left.text ~= "", "textes réécrits après déplacement")
 
@@ -454,4 +458,8 @@ assert(calls.reset == 2, "groupe rejoint : remise à zéro")
 Fire("GROUP_ROSTER_UPDATE")
 assert(calls.reset == 2, "changement dans le groupe : pas de remise à zéro")
 db.autoReset = false
+InterfaceOptionsFrame_OpenToCategory = function() calls.openOptions = (calls.openOptions or 0) + 1 end
+testCombat = true; slash("options"); assert(not calls.openOptions, "en combat : pas d'ouverture")
+testCombat = false; Fire("PLAYER_REGEN_ENABLED"); assert(calls.openOptions == 1, "ouverture après le combat")
+Fire("PLAYER_REGEN_ENABLED"); assert(calls.openOptions == 1, "une seule fois"); calls.openOptions = nil
 print("uicheck OK")

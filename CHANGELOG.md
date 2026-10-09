@@ -1,5 +1,18 @@
 # ForeverMeter
 
+## 1.11.1
+
+### Fixed
+- Death recap: events are shown oldest to newest even when the game lists the killing blow first.
+- Threat against a boss: secret threat values now show "threat unavailable" instead of a Lua error.
+- Damage rows in combat: totals use a format that accepts secret values, so they no longer raise an error.
+- With auto-hide off, the windows and the detail window no longer hide out of combat.
+- A locked window no longer moves when its title is dragged, and /fm lock during a drag no longer leaves it stuck to the cursor.
+- Copy as text: the window no longer opens empty when every source line is secret.
+- /fm options in combat: the options now open when combat ends, instead of being blocked.
+- Adding a window no longer raises an error when another window has no position yet.
+- Reports use C_ChatInfo.SendChatMessage, so they work without the deprecated chat fallback.
+
 ## 1.11.0
 
 ### New

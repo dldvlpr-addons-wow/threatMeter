@@ -47,6 +47,10 @@ assert(#FM.RecapLines(nil) == 0 and #FM.RecapLines({}) == 0)
 local many = {}
 for i = 1, 10 do many[i] = { spellName = "S" .. i, amount = i, timestamp = i } end
 assert(#FM.RecapLines(many) == FM.RECAP_LINES and FM.RecapLines(many)[1].left == "-5.0s  S5")
+local newestFirst = {}
+for i = 10, 1, -1 do newestFirst[#newestFirst + 1] = many[i] end
+local fromNewest = FM.RecapLines(newestFirst)
+assert(fromNewest[1].left == "-5.0s  S5" and fromNewest[#fromNewest].left == "0.0s  S10")
 
 -- Fenêtres : la deuxième prend le mode opposé à la première et se pose sous la précédente.
 local w1 = FM.NewWindowConfig({}, 100)

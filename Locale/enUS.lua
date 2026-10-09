@@ -31,6 +31,7 @@ NS.Locales.enUS = {
     REPORT_NOTHING_THREAT = "nothing to report in threat mode",
     REPORT_NOTHING = "nothing to report",
     REPORT_OUT_OF_COMBAT = "report available out of combat only",
+    OPTIONS_AFTER_COMBAT = "options will open after combat",
     REPORT_HEADER = "ForeverMeter: %s, %s",
     MSG_LOCKED = "window locked",
     MSG_UNLOCKED = "window unlocked",
