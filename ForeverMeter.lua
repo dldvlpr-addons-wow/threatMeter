@@ -941,14 +941,21 @@ local function RenderMeter(win)
 	if secret then win.scrollOffset = 0 end
 	local maxOffset = math.max(0, #list - win.rows)
 	if win.scrollOffset > maxOffset then win.scrollOffset = maxOffset end
+	-- Sa propre barre prend la dernière ligne quand le joueur est sous les lignes visibles.
+	local myIndex
+	for index, src in ipairs(list) do
+		if not issecretvalue(src.isLocalPlayer) and src.isLocalPlayer then myIndex = index; break end
+	end
 	for i = 1, win.rows do
-		local bar, src = win.bars[i], list[i + win.scrollOffset]
+		local index = i + win.scrollOffset
+		if i == win.rows and win.rows > 1 and myIndex and myIndex > index then index = myIndex end
+		local bar, src = win.bars[i], list[index]
 		if src then
 			bar:SetMinMaxValues(0, maxAmount)
 			bar:SetValue(src.totalAmount, SMOOTH_FILL)
 			bar:SetStatusBarColor(ClassColor(src.classFilename))
 			SetSourceIcon(bar, src)
-			bar.left:SetText(string.format("%d. %s", i + win.scrollOffset, src.name))
+			bar.left:SetText(string.format("%d. %s", index, src.name))
 			local deathTime = mode == "deaths" and src.deathTimeSeconds
 			if not secret and not issecretvalue(deathTime) and deathTime then
 				-- Morts : nombre, puis instant de la (dernière) mort dans le combat.

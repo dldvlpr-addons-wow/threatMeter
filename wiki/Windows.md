@@ -22,6 +22,7 @@ When there is no room, it opens near the center of the screen.
   With the left grip, the right edge stays in place.
 - `/fm rows <n>` (1 to 40) and `/fm width <px>` (150 to 600) set a shared size for all windows and clear per-window sizes.
 - `/fm scale <x>` (0.5 to 2) scales every window.
+- When you rank below the visible rows, your bar takes the last row with your real rank. Not on a 1-row window.
 
 ## Breakdown panel
 - Click a bar to open the per-spell breakdown of that player. It is a separate panel, drawn above the meter windows.

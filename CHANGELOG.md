@@ -1,5 +1,10 @@
 # ForeverMeter
 
+## 1.12.0
+
+### New
+- **Your bar always shown**: when you rank below the visible rows, your bar takes the last row with your real rank.
+
 ## 1.11.2
 
 ### New

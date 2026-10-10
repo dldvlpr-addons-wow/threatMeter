@@ -6,6 +6,9 @@ Single Lua file, no dependencies.
 > **Warning: restart the game before launching ForeverMeter** after installing or updating it.
 > `/reload` is not enough: the game only loads new texture and font files at startup.
 
+## New in 1.12.0
+- **Your bar always shown**: when you rank below the visible rows, your bar takes the last row with your real rank.
+
 ## New in 1.10.0
 - **Copy as text** (window menu): the window's lines in a box, ready for Ctrl+C and a paste into Discord (out of combat).
 
@@ -42,6 +45,7 @@ Install from CurseForge or Wago, or copy the folder into
   and size); dragging it away detaches it.
 - Size: grips in the bottom-right and bottom-left corners of each window (width and number of rows, per window).
   `/fm rows` and `/fm width` set a shared size and clear per-window sizes.
+- Your own bar: when you rank below the visible rows, it takes the last row with your real rank (windows of 2 rows or more).
 - Sessions: current fight, overall, or any fight kept by the client.
 - **Menu** button (or right-click on the title): mode, session, lock, windows, copy as text. **Reset** button: clears data.
 - Padlock in the title bar: locks position and size of that window only (`/fm lock` / `unlock`: all windows).

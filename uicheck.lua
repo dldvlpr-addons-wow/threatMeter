@@ -156,6 +156,19 @@ assert(w1.bars[1].left.text == "1. Moi" and w1.bars[2].left.text == "2. Bob" and
 assert(w1.bars[1].right.text == "2.0k (200/s, 66.7%)", w1.bars[1].right.text)
 assert(w1.bars[1].icon.SetTexture and w1.resetButton.text == "Reset")
 
+-- Sa propre barre sous les lignes visibles : affichée en dernière ligne avec son rang.
+local savedSources = session.combatSources
+local crowd = {}
+for n = 1, w1.rows + 3 do crowd[n] = src("Autre" .. n, "MAGE", 2500 - n, "Player-" .. n) end
+crowd[#crowd + 1] = savedSources[1]
+session.combatSources = crowd
+Tick()
+assert(w1.bars[w1.rows].left.text == string.format("%d. Moi", #crowd), tostring(w1.bars[w1.rows].left.text))
+assert(w1.bars[w1.rows - 1].left.text == string.format("%d. Autre%d", w1.rows - 1, w1.rows - 1))
+session.combatSources = savedSources
+Tick()
+assert(w1.bars[1].left.text == "1. Moi")
+
 -- Tick OnUpdate
 eventsFrame.scripts.OnUpdate(eventsFrame, 1)
 
