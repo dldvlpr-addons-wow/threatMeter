@@ -645,6 +645,7 @@ local function MakeWindow(name, w, h)
 	f.title:SetPoint("LEFT", 4, 0)
 	f.title:SetPoint("RIGHT", -4, 0)
 	f.title:SetJustifyH("LEFT")
+	f.title:SetWordWrap(false)
 	f.bars = {}
 	return f
 end
@@ -1318,7 +1319,19 @@ local function NewWindow(i)
 		f.cfg.locked = not f.cfg.locked
 		f.UpdateLock()
 	end)
-	f.title:SetPoint("RIGHT", f.lockButton, "LEFT", -4, 0)
+	f.optionsButton = CreateFrame("Button", nil, f.header)
+	f.optionsButton:SetSize(14, 14)
+	f.optionsButton:SetPoint("RIGHT", f.lockButton, "LEFT", -2, 0)
+	f.optionsButton:SetNormalTexture("Interface\\WorldMap\\GEAR_64GREY")
+	f.optionsButton:SetHighlightTexture("Interface\\WorldMap\\GEAR_64GREY", "ADD")
+	f.optionsButton:SetScript("OnClick", function() OpenOptions() end)
+	f.optionsButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(L.MENU_OPTIONS)
+		GameTooltip:Show()
+	end)
+	f.optionsButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	f.title:SetPoint("RIGHT", f.optionsButton, "LEFT", -4, 0)
 	f.OnMoved = function()
 		local point, _, relPoint, x, y = f:GetPoint()
 		f.cfg.point = { point, nil, relPoint, x, y }

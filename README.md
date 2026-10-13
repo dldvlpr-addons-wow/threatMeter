@@ -6,6 +6,9 @@ Single Lua file, no dependencies.
 > **Warning: restart the game before launching ForeverMeter** after installing or updating it.
 > `/reload` is not enough: the game only loads new texture and font files at startup.
 
+## New in 1.13.0
+- **Options button**: a gear in each window's title bar opens the options.
+
 ## New in 1.12.0
 - **Your bar always shown**: when you rank below the visible rows, your bar takes the last row with your real rank.
 
@@ -49,6 +52,7 @@ Install from CurseForge or Wago, or copy the folder into
 - Sessions: current fight, overall, or any fight kept by the client.
 - **Menu** button (or right-click on the title): mode, session, lock, windows, copy as text. **Reset** button: clears data.
 - Padlock in the title bar: locks position and size of that window only (`/fm lock` / `unlock`: all windows).
+- Gear in the title bar: opens the options.
 - Hover a bar: top 5 spells of that source. Click: per-spell breakdown (icon, total, per second). Mouse wheel: scroll; over the title: change mode.
   The breakdown is a separate panel above the meter windows; drag its title to move it, its position is kept.
 - Shift-click a second bar while the breakdown is open: spell-by-spell comparison of both sources ("12.3k | 9.8k (+26%)"), out of combat only.
@@ -57,7 +61,7 @@ Install from CurseForge or Wago, or copy the folder into
 - Deaths: time of death on the bar, last hits taken (client death recap) on hover.
 - Refresh every 0.2 s by default, on top of meter events (`/fm refresh 0.1` for snappier updates).
 - Button in the addon compartment (next to the minimap) to show or hide the windows.
-- Options panel (Options → AddOns → ForeverMeter, `/fm options`, or **Options** in a window menu):
+- Options panel (Options → AddOns → ForeverMeter, `/fm options`, **Options** in a window menu, or the gear in the title bar):
   texture, font, font size, language, scale, refresh, threat warning, sound, pets, lock, auto show, reset,
   bar text columns (total, per second, percent), bar height, background opacity.
 - Bar textures (`blizzard`, `flat`, `gradient`, `glass`, `striped`, `fade`) and fonts (six bundled OFL fonts plus

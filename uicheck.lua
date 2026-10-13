@@ -480,4 +480,5 @@ InterfaceOptionsFrame_OpenToCategory = function() calls.openOptions = (calls.ope
 testCombat = true; slash("options"); assert(not calls.openOptions, "en combat : pas d'ouverture")
 testCombat = false; Fire("PLAYER_REGEN_ENABLED"); assert(calls.openOptions == 1, "ouverture après le combat")
 Fire("PLAYER_REGEN_ENABLED"); assert(calls.openOptions == 1, "une seule fois"); calls.openOptions = nil
+w1.optionsButton.scripts.OnClick(); assert(calls.openOptions == 1, "bouton Options du titre"); calls.openOptions = nil
 print("uicheck OK")

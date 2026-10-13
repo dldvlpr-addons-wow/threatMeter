@@ -1,5 +1,13 @@
 # ForeverMeter
 
+## 1.13.0
+
+### New
+- **Options button**: a gear in each window's title bar opens the options (after combat if you are fighting).
+
+### Fixed
+- A title too long for a narrow window is cut with "…" instead of wrapping over the first bar.
+
 ## 1.12.0
 
 ### New
