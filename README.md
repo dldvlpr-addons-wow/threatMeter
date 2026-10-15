@@ -1,29 +1,17 @@
 # ForeverMeter
 
 Damage, healing, damage taken and threat meter for **WoW Forever** (client 1.60, 12.x engine).
-Single Lua file, no dependencies.
+Pure Lua, no libraries required: one main file, a settings mirror and 11 locale files.
 
-> **Warning: restart the game before launching ForeverMeter** after installing or updating it.
-> `/reload` is not enough: the game only loads new texture and font files at startup.
+> **First install: restart the game once.** The game only loads new texture and font files at startup,
+> so `/reload` is not enough the first time. After an update, `/reload` is usually enough; restart if something looks missing.
 
-## New in 1.13.0
-- **Options button**: a gear in each window's title bar opens the options.
+## What's new in 1.14.0
+- **DPS display**: menu → Display → **DPS** shows damage with the per second value only.
+- Per window, from its menu: bar text, **My bar only**, **No title bar**, **Big number**.
+- In combat, totals are abbreviated by the game (`12K`).
 
-## New in 1.12.0
-- **Your bar always shown**: when you rank below the visible rows, your bar takes the last row with your real rank.
-
-## New in 1.10.0
-- **Copy as text** (window menu): the window's lines in a box, ready for Ctrl+C and a paste into Discord (out of combat).
-
-## New in 1.9.0
-- **Auto show** (option): windows only in combat or in a group.
-- **Bar text columns**: show or hide total, per second and percent.
-- **Bar height** and **background opacity** sliders in the options panel.
-- **Chat report from the breakdown**: right-click the breakdown title (out of combat).
-- **Test mode** (`/fm test`): fake bars to tune the look without a fight.
-- **Key bindings**: show or hide the windows, reset, next mode.
-
-See [CHANGELOG.md](CHANGELOG.md) for details.
+Earlier versions: see [CHANGELOG.md](CHANGELOG.md).
 
 ## Why a dedicated meter
 On this engine, `COMBAT_LOG_EVENT_UNFILTERED` is forbidden to addons (ADDON_ACTION_FORBIDDEN popup).
@@ -49,6 +37,8 @@ Install from CurseForge or Wago, or copy the folder into
 - Size: grips in the bottom-right and bottom-left corners of each window (width and number of rows, per window).
   `/fm rows` and `/fm width` set a shared size and clear per-window sizes.
 - Your own bar: when you rank below the visible rows, it takes the last row with your real rank (windows of 2 rows or more).
+- Per window, from its menu: bar text (total, per second, percent), **My bar only**, **No title bar**, **Big number**.
+  Menu → Display → **DPS**: damage with the per second value only.
 - Sessions: current fight, overall, or any fight kept by the client.
 - **Menu** button (or right-click on the title): mode, session, lock, windows, copy as text. **Reset** button: clears data.
 - Padlock in the title bar: locks position and size of that window only (`/fm lock` / `unlock`: all windows).
@@ -72,7 +62,7 @@ Install from CurseForge or Wago, or copy the folder into
 - Auto show: windows only in combat or in a group, hidden 10 s after a solo fight (option).
 - Auto reset: clear the data on entering an instance other than the last one, or on joining a group (option, off by default).
 - Threat: visual and sound warning above an adjustable threshold (`/fm warn 90`).
-- Chat report (`/fm report 5`): raid, party or say depending on context. Right-click the breakdown title
+- Chat report (`/fm report 5`): raid, party, or say in an instance; solo outside an instance, the lines are shown only to you. Right-click the breakdown title
   to report that player's top 5 spells.
 - 11 languages (`Locale/`): enUS, frFR, deDE, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW.
   Defaults to the client language; `/fm lang frFR` forces one, `/fm lang auto` goes back to the client language.

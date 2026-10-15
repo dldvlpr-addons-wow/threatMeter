@@ -25,6 +25,14 @@ assert(FM.FormatRow(12345, 1234, 24690, false, {}) == "")
 assert(FM.FormatRow(12345, 1234, nil, true, { perSecond = true, percent = true }) == "1234.0/s")
 assert(FM.FormatRow(12345, 1234, nil, true, { total = true, percent = true }) == "12345")
 assert(FM.FormatRow(12345, 1234, nil, true, { percent = true }) == "")
+-- En combat, total abrégé par le client (AbbreviateNumbers) ; appel refusé : repli sur le format brut.
+AbbreviateNumbers = function(v) return "A" .. math.floor(v) end
+assert(FM.FormatRow(12345, 1234, nil, true) == "A12345 (1234.0/s)", "débit jamais abrégé : sous 1000 le client garde toutes les décimales")
+assert(FM.FormatRow(12345, 1234, nil, true, { perSecond = true }) == "1234.0/s")
+assert(FM.FormatRow(12345, 1234, 24690, false) == "12.3k (1.2k/s, 50.0%)", "hors combat : format de l'addon")
+AbbreviateNumbers = function() error("refusé") end
+assert(FM.FormatRow(12345, 1234, nil, true) == "12345 (1234.0/s)")
+AbbreviateNumbers = nil
 
 for _, m in ipairs(FM.MODES) do assert(FM.MODE_INFO[m], m) end
 assert(FM.MODE_INFO.damage.type == 0 and FM.MODE_INFO.heal.type == 2 and FM.MODE_INFO.taken.type == 7)

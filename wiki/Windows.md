@@ -13,6 +13,17 @@ A new window takes the size and lock state of the window it comes from. It attac
 of that window (below, right, above, left), without going off screen or covering another window.
 When there is no room, it opens near the center of the screen.
 
+## DPS display and display options
+- Menu → Display → **DPS**: damage with the per second value only. Choosing another display gives the window back the shared bar text.
+- Bar text: the **Bar text** entries of a window menu (total, per second, percent) apply to that window only.
+  The options panel sets the shared value, used by windows without their own (the DPS display sets its own).
+- **My bar only**: one row, your own bar with your rank. The bottom grips then change the width only.
+- **No title bar**: the window has no title. Right-click the window or a bar to open its menu.
+  To move the window, turn the title bar back on first.
+- **Big number**: your own value in large text, without bars (threat mode: your threat percent).
+  Combine it with **DPS** and **No title bar** for a plain DPS counter.
+- In combat, totals are abbreviated by the game (`12K`).
+
 ## Snapping
 - Drop a window against the edge of another one to snap it. It then follows that window's moves and size.
 - Drag it away to detach it.

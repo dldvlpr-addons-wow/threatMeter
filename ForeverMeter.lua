@@ -190,13 +190,24 @@ end
 -- Ligne de droite d'une barre, selon les colonnes choisies (`columns` : total, perSecond, percent ; toutes par défaut).
 -- `secret` vrai en combat : pas de comparaison ni d'arithmétique possible, string.format reste permis et le
 -- résultat s'affiche tel quel ; le pourcentage, calculé, n'existe pas.
+-- Total secret abrégé (12K) par AbbreviateNumbers du client, qui accepte un secret sans arithmétique côté addon.
+-- Sous 1000 il rend la valeur brute avec toutes ses décimales (vu en jeu : 0.818 -> "0.818") : réservé au total,
+-- entier. Client sans la fonction ou appel refusé : nombre brut au format `fmt`.
+local function SecretNumber(v, fmt)
+	if AbbreviateNumbers then
+		local ok, text = pcall(AbbreviateNumbers, v)
+		if ok then return text end
+	end
+	return string.format(fmt, v)
+end
+
 function FM.FormatRow(total, perSecond, sessionTotal, secret, columns)
 	columns = columns or DEFAULTS.columns
 	if secret then
 		-- Pas de test possible sur une valeur secrète : débit à une décimale toujours (0.8/s ne doit pas s'afficher 1).
-		-- Total en %.0f : %d lève sur un secret, %.0f l'accepte.
-		if columns.total and columns.perSecond then return string.format("%.0f (%.1f/s)", total, perSecond) end
-		if columns.total then return string.format("%.0f", total) end
+		-- Total abrégé, repli %.0f (%d lève sur un secret, %.0f l'accepte). string.format accepte un texte secret.
+		if columns.total and columns.perSecond then return string.format("%s (%.1f/s)", SecretNumber(total, "%.0f"), perSecond) end
+		if columns.total then return SecretNumber(total, "%.0f") end
 		if columns.perSecond then return string.format("%.1f/s", perSecond) end
 		return ""
 	end
@@ -423,13 +434,31 @@ local function Print(msg)
 	DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99ForeverMeter|r : " .. msg)
 end
 
-local function WindowHeight(rows)
-	return 18 + (rows or db.rows) * (db.rowHeight + 1) + 3
+-- Hauteur d'une fenêtre : titre (absent si cfg.noHeader), puis les lignes ou le gros chiffre (cfg.bigNumber).
+-- cfg nil : fenêtre de détail, avec titre.
+local BIG_NUMBER_HEIGHT = 36
+local function HeaderHeight(cfg) return cfg and cfg.noHeader and 0 or 18 end
+local function WindowHeight(rows, cfg)
+	if cfg and cfg.bigNumber then return HeaderHeight(cfg) + BIG_NUMBER_HEIGHT end
+	return HeaderHeight(cfg) + (rows or db.rows) * (db.rowHeight + 1) + 3
 end
 
 -- Taille d'une fenêtre : la sienne (poignée de redimensionnement) sinon la taille commune (/fm rows, /fm width).
 local function Rows(win) return win.cfg.rows or db.rows end
 local function Width(win) return win.cfg.width or db.width end
+-- Lignes affichées : aucune barre sous le gros chiffre, une seule pour « ma barre seulement ».
+local function ShownRows(win)
+	if win.cfg.bigNumber then return 0 end
+	if win.cfg.onlyMe then return 1 end
+	return Rows(win)
+end
+-- Texte des barres : réglage de la fenêtre (menu), sinon le réglage commun (options).
+local function Columns(win) return win.cfg.columns or db.columns end
+-- Affichage DPS : mode dégâts avec le débit seul en colonne propre à la fenêtre.
+local function IsDps(win)
+	local c = win.cfg.columns
+	return win.cfg.mode == "damage" and c ~= nil and c.perSecond and not c.total and not c.percent
+end
 
 ------------------------------------------------------------------------
 -- Lecture de C_DamageMeter (par fenêtre : win.cfg.mode, win.cfg.view)
@@ -503,7 +532,8 @@ local function SessionLabel(win, session)
 	return string.format(L.SESSION_UNKNOWN, tostring(view))
 end
 
-local function SelectMode(win, m) win.cfg.mode = m; win.scrollOffset = 0; win.selectedGuid, win.compareGuid = nil, nil end
+-- Quitter l'affichage DPS (menu, molette, /fm mode) rend à la fenêtre les colonnes communes.
+local function SelectMode(win, m) if IsDps(win) then win.cfg.columns = nil end; win.cfg.mode = m; win.scrollOffset = 0; win.selectedGuid, win.compareGuid = nil, nil end
 local function SelectView(win, v) win.cfg.view = v; win.scrollOffset = 0; win.selectedGuid, win.compareGuid = nil, nil end
 
 local function CycleMode(win, step)
@@ -710,7 +740,7 @@ local function LayoutBars(f, rows, width)
 			text:SetText("")
 		end
 		bar:ClearAllPoints()
-		bar:SetPoint("TOPLEFT", 3, -18 - (i - 1) * (db.rowHeight + 1))
+		bar:SetPoint("TOPLEFT", 3, -HeaderHeight(f.cfg) - (i - 1) * (db.rowHeight + 1))
 		if i > rows then bar:Hide() end
 	end
 end
@@ -719,7 +749,11 @@ local function LayoutWindow(f, rows, width)
 	f:SetScale(db.scale)
 	f:SetBackdropColor(0, 0, 0, db.bgAlpha)
 	f:SetWidth(width)
-	f:SetHeight(WindowHeight(rows))
+	f:SetHeight(WindowHeight(rows, f.cfg))
+	if f.cfg then
+		f.header:SetShown(not f.cfg.noHeader)
+		f.big:SetShown(f.cfg.bigNumber == true)
+	end
 	LayoutBars(f, rows, width)
 end
 
@@ -781,7 +815,7 @@ end
 local function Layout()
 	for i = 1, #db.windows do
 		local f = windows[i]
-		LayoutWindow(f, Rows(f), Width(f))
+		LayoutWindow(f, ShownRows(f), Width(f))
 		f:ClearAllPoints()
 		if f.cfg.anchor and FM.AnchorValid(db.windows, i) then
 			-- Collée à une autre fenêtre : elle suit ses déplacements et sa taille.
@@ -901,7 +935,7 @@ local function RenderDetail()
 			bar.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 			bar.icon:SetTexture(SpellIcon(s.spellID))
 			bar.left:SetText(SpellLabel(win, s))
-			bar.right:SetText(FM.FormatRow(s.totalAmount, PerSecond(win, s, session, secret), sessionTotal, secret, db.columns))
+			bar.right:SetText(FM.FormatRow(s.totalAmount, PerSecond(win, s, session, secret), sessionTotal, secret, Columns(win)))
 			bar:Show()
 		else
 			bar:Hide()
@@ -934,7 +968,7 @@ local function RenderMeter(win)
 	else
 		label = SessionLabel(win, session)
 	end
-	SetTitle(win.title, FM.MODE_INFO[mode].label .. " · " .. label)
+	SetTitle(win.title, (IsDps(win) and L.MENU_DPS or FM.MODE_INFO[mode].label) .. " · " .. label)
 	local list = Sources(session)
 	local maxAmount = session and session.maxAmount or 1
 	local sessionTotal = session and session.totalAmount
@@ -943,13 +977,19 @@ local function RenderMeter(win)
 	local maxOffset = math.max(0, #list - win.rows)
 	if win.scrollOffset > maxOffset then win.scrollOffset = maxOffset end
 	-- Sa propre barre prend la dernière ligne quand le joueur est sous les lignes visibles.
+	-- isLocalPlayer n'est jamais secret : trouvé aussi en combat.
 	local myIndex
 	for index, src in ipairs(list) do
 		if not issecretvalue(src.isLocalPlayer) and src.isLocalPlayer then myIndex = index; break end
 	end
+	if win.cfg.bigNumber then
+		local me = myIndex and list[myIndex]
+		win.big:SetText(me and FM.FormatRow(me.totalAmount, PerSecond(win, me, session, secret), sessionTotal, secret, Columns(win)) or "")
+	end
 	for i = 1, win.rows do
 		local index = i + win.scrollOffset
 		if i == win.rows and win.rows > 1 and myIndex and myIndex > index then index = myIndex end
+		if win.cfg.onlyMe then index = myIndex or 0 end
 		local bar, src = win.bars[i], list[index]
 		if src then
 			bar:SetMinMaxValues(0, maxAmount)
@@ -962,7 +1002,7 @@ local function RenderMeter(win)
 				-- Morts : nombre, puis instant de la (dernière) mort dans le combat.
 				bar.right:SetText(FM.FormatValue(src.totalAmount) .. " · " .. FM.FormatTime(deathTime))
 			else
-				bar.right:SetText(FM.FormatRow(src.totalAmount, PerSecond(win, src, session, secret), sessionTotal, secret, db.columns))
+				bar.right:SetText(FM.FormatRow(src.totalAmount, PerSecond(win, src, session, secret), sessionTotal, secret, Columns(win)))
 			end
 			bar.glow:Hide()
 			bar.source = src
@@ -993,8 +1033,20 @@ local function RenderThreat(win)
 		wipe(threatList)
 		list = threatList
 	end
+	local mine
+	for _, row in ipairs(list) do if row.isPlayer then mine = row; break end end
+	if win.cfg.bigNumber then win.big:SetText(mine and string.format("%d%%", mine.pct) or "") end
+	-- Alerte sur sa propre ligne, même sans barre affichée (gros chiffre).
+	local warn = mine and FM.ShouldWarn(mine, db.warnPct) or false
+	if warn and warnedGuid ~= mine.guid then
+		warnedGuid = mine.guid
+		if db.warnSound then PlaySound(WARN_SOUND, "Master") end
+	elseif mine and not warn then
+		warnedGuid = nil
+	end
 	for i = 1, win.rows do
 		local bar, row = win.bars[i], list[i]
+		if win.cfg.onlyMe then row = mine end
 		if row then
 			bar:SetMinMaxValues(0, 100)
 			bar:SetValue(row.pct, SMOOTH_FILL)
@@ -1002,16 +1054,9 @@ local function RenderThreat(win)
 			SetClassIcon(bar, row.class)
 			bar.left:SetText((row.isPlayer and "> " or "") .. row.name)
 			bar.right:SetText(string.format("%s  %s/s  %d%%", FM.FormatValue(row.value), FM.FormatValue(row.tps), row.pct))
-			local warn = row.isPlayer and FM.ShouldWarn(row, db.warnPct) or false
-			bar.glow:SetShown(warn)
+			bar.glow:SetShown(row == mine and warn)
 			bar.source, bar.sourceGuid = nil, nil
 			bar:Show()
-			if warn and warnedGuid ~= row.guid then
-				warnedGuid = row.guid
-				if db.warnSound then PlaySound(WARN_SOUND, "Master") end
-			elseif row.isPlayer and not warn then
-				warnedGuid = nil
-			end
 		else
 			bar:Hide()
 		end
@@ -1063,7 +1108,7 @@ local function ShowTooltip(bar)
 		local session = ReadSession(win)
 		for i = 1, math.min(5, #spells) do
 			local s = spells[i]
-			GameTooltip:AddDoubleLine(SpellLabel(win, s), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, secret), source.totalAmount, secret, db.columns), 1, 1, 1, 1, 1, 1)
+			GameTooltip:AddDoubleLine(SpellLabel(win, s), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, secret), source.totalAmount, secret, Columns(win)), 1, 1, 1, 1, 1, 1)
 		end
 		GameTooltip:AddLine(L.TIP_CLICK, 0.5, 0.5, 0.5)
 		GameTooltip:AddLine(L.TIP_COMPARE, 0.5, 0.5, 0.5)
@@ -1128,7 +1173,7 @@ local function AddWindow(parent)
 		rects[i] = { o:GetLeft() or 0, o:GetRight() or 0, o:GetTop() or 0, o:GetBottom() or 0 }
 	end
 	local screen = { (UIParent:GetWidth() or 0) / db.scale, (UIParent:GetHeight() or 0) / db.scale }
-	local to, side = FM.FreeSide(rects, Width(parent), WindowHeight(Rows(parent)), screen, ANCHOR_GAP, parent.index)
+	local to, side = FM.FreeSide(rects, Width(parent), WindowHeight(ShownRows({ cfg = c }), c), screen, ANCHOR_GAP, parent.index)
 	if to then
 		c.anchor = { to = to, side = side }
 	else
@@ -1169,7 +1214,7 @@ local function ReportLines(win, count)
 	local lines = { string.format(L.REPORT_HEADER, FM.MODE_INFO[win.cfg.mode].label, SessionLabel(win, session)) }
 	for i = 1, math.min(count, #list) do
 		local s = list[i]
-		lines[#lines + 1] = string.format("%d. %s  %s", i, s.name, FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), session.totalAmount, false, db.columns))
+		lines[#lines + 1] = string.format("%d. %s  %s", i, s.name, FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), session.totalAmount, false, Columns(win)))
 	end
 	return lines
 end
@@ -1218,10 +1263,26 @@ local function CopyWindow(win)
 	copyFrame.box:HighlightText()
 end
 
+local WINDOW_FLAGS = {
+	{ key = "onlyMe", label = "MENU_ONLY_ME" },
+	{ key = "noHeader", label = "MENU_NO_HEADER" },
+	{ key = "bigNumber", label = "MENU_BIG_NUMBER" },
+}
+local COLUMN_CHOICES = {
+	{ key = "total", label = "OPT_COL_TOTAL" },
+	{ key = "perSecond", label = "OPT_COL_PER_SECOND" },
+	{ key = "percent", label = "OPT_COL_PERCENT" },
+}
+
 local function MenuEntries(win)
 	local entries = { { title = L.MENU_DISPLAY } }
 	for _, m in ipairs(FM.MODES) do
-		entries[#entries + 1] = { text = FM.MODE_INFO[m].label, checked = function() return win.cfg.mode == m end, func = function() SelectMode(win, m); Refresh() end }
+		entries[#entries + 1] = { text = FM.MODE_INFO[m].label, checked = function() return win.cfg.mode == m and not IsDps(win) end,
+			func = function() SelectMode(win, m); Refresh() end }
+		if m == "damage" then
+			entries[#entries + 1] = { text = L.MENU_DPS, checked = function() return IsDps(win) end,
+				func = function() SelectMode(win, "damage"); win.cfg.columns = { perSecond = true }; Refresh() end }
+		end
 	end
 	entries[#entries + 1] = { divider = true }
 	entries[#entries + 1] = { title = L.MENU_SESSION }
@@ -1234,8 +1295,29 @@ local function MenuEntries(win)
 	entries[#entries + 1] = { divider = true }
 	entries[#entries + 1] = { title = L.MENU_WINDOWS }
 	entries[#entries + 1] = { text = L.MENU_LOCK, checkbox = true, checked = function() return win.cfg.locked == true end, func = function() win.cfg.locked = not win.cfg.locked; win.UpdateLock() end }
-	if #db.windows < FM.MAX_WINDOWS then entries[#entries + 1] = { text = L.MENU_NEW_WINDOW, func = function() AddWindow(win) end } end
+	if #db.windows < FM.MAX_WINDOWS then
+		entries[#entries + 1] = { text = L.MENU_NEW_WINDOW, func = function() AddWindow(win) end }
+	end
 	if #db.windows > 1 then entries[#entries + 1] = { text = L.MENU_CLOSE_WINDOW, func = function() CloseWindow(win) end } end
+	-- Affichage de cette fenêtre seule : vrai ou nil (absent de la sauvegarde).
+	for _, o in ipairs(WINDOW_FLAGS) do
+		entries[#entries + 1] = { text = L[o.label], checkbox = true, checked = function() return win.cfg[o.key] == true end,
+			func = function() win.cfg[o.key] = not win.cfg[o.key] or nil; Layout(); Refresh() end }
+	end
+	entries[#entries + 1] = { divider = true }
+	entries[#entries + 1] = { title = L.OPT_COLUMNS }
+	-- Première case cochée : la fenêtre prend sa propre copie du réglage commun.
+	for _, o in ipairs(COLUMN_CHOICES) do
+		entries[#entries + 1] = { text = L[o.label], checkbox = true, checked = function() return Columns(win)[o.key] == true end,
+			func = function()
+				if not win.cfg.columns then
+					win.cfg.columns = {}
+					for k, v in pairs(db.columns) do win.cfg.columns[k] = v end
+				end
+				win.cfg.columns[o.key] = not win.cfg.columns[o.key]
+				Refresh()
+			end }
+	end
 	entries[#entries + 1] = { divider = true }
 	entries[#entries + 1] = { text = L.MENU_COPY, func = function() CopyWindow(win) end }
 	entries[#entries + 1] = { text = L.MENU_OPTIONS, func = function() OpenOptions() end }
@@ -1332,6 +1414,18 @@ local function NewWindow(i)
 	end)
 	f.optionsButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	f.title:SetPoint("RIGHT", f.optionsButton, "LEFT", -4, 0)
+	-- Gros chiffre (cfg.bigNumber) : sa propre valeur, sans barres, en bas de la fenêtre.
+	f.big = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+	f.big:SetFont(STANDARD_TEXT_FONT, 24, "OUTLINE")
+	f.big:SetPoint("BOTTOMLEFT", 4, 0)
+	f.big:SetPoint("BOTTOMRIGHT", -4, 0)
+	f.big:SetHeight(BIG_NUMBER_HEIGHT)
+	f.big:SetWordWrap(false)
+	f.big:Hide()
+	-- Sans titre (cfg.noHeader) : clic droit sur la fenêtre ou une barre pour le menu.
+	f:SetScript("OnMouseUp", function(self, button)
+		if button == "RightButton" then OpenMenu(f, self) end
+	end)
 	f.OnMoved = function()
 		local point, _, relPoint, x, y = f:GetPoint()
 		f.cfg.point = { point, nil, relPoint, x, y }
@@ -1371,7 +1465,7 @@ local function NewWindow(i)
 	-- Taille (largeur, hauteur en px) -> largeur et lignes de cette fenêtre.
 	local function SizeToConfig(w, h)
 		return math.max(150, math.min(600, math.floor(w + 0.5))),
-			math.max(1, math.min(40, math.floor((h - 21) / (db.rowHeight + 1) + 0.5)))
+			math.max(1, math.min(40, math.floor((h - HeaderHeight(f.cfg) - 3) / (db.rowHeight + 1) + 0.5)))
 	end
 	-- Relâchement : la taille suivie pendant le glissement est arrondie à un nombre entier de lignes.
 	f.OnResized = function()
@@ -1404,10 +1498,14 @@ local function NewWindow(i)
 			local scale = f:GetEffectiveScale()
 			local w = fromLeft and f:GetRight() - x / scale or x / scale - f:GetLeft()
 			w = math.max(150, math.min(600, w))
-			local h = math.max(WindowHeight(1), math.min(WindowHeight(40), f:GetTop() - y / scale))
-			f.cfg.width, f.cfg.rows = SizeToConfig(w, h)
+			-- Gros chiffre ou « ma barre seulement » : hauteur fixe, seule la largeur suit le curseur.
+			local fixed = f.cfg.bigNumber or f.cfg.onlyMe
+			local h = fixed and WindowHeight(ShownRows(f), f.cfg) or math.max(WindowHeight(1, f.cfg), math.min(WindowHeight(40, f.cfg), f:GetTop() - y / scale))
+			local rows
+			f.cfg.width, rows = SizeToConfig(w, h)
+			if not fixed then f.cfg.rows = rows end
 			f:SetSize(w, h)
-			LayoutBars(f, f.cfg.rows, w)
+			LayoutBars(f, ShownRows(f), w)
 			Refresh()
 		end
 		grip:SetScript("OnDragStart", function()
@@ -1431,7 +1529,9 @@ local function NewWindow(i)
 	for b = 1, 40 do
 		local bar = MakeBar(f, b)
 		bar.win = f
-		bar:SetScript("OnMouseUp", BarClick)
+		bar:SetScript("OnMouseUp", function(self, button)
+			if button == "RightButton" and f.cfg.noHeader then OpenMenu(f, self) else BarClick(self) end
+		end)
 		bar:SetScript("OnEnter", ShowTooltip)
 		bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	end
@@ -1682,7 +1782,7 @@ local function ReportDetail(count)
 	ChatSend(string.format(L.REPORT_DETAIL_HEADER, win.selectedName or "?", label, sessionLabel))
 	for i = 1, math.min(count, #spells) do
 		local s = spells[i]
-		ChatSend(string.format("%d. %s  %s", i, SpellLabel(win, s), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), source.totalAmount, false, db.columns)))
+		ChatSend(string.format("%d. %s  %s", i, SpellLabel(win, s), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), source.totalAmount, false, Columns(win))))
 	end
 end
 

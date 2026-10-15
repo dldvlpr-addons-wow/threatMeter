@@ -41,10 +41,11 @@ jobs:
           curseforge="https://www.curseforge.com/wow/addons/forever-meter"
           wago="https://addons.wago.io/addons/forever-details-meter-threat-damage-healing-and-more"
           links="CurseForge: $curseforge"$'\n'"Wago: $wago"
+          pitch="Damage, healing, damage taken and threat meter for WoW Forever."
           post() { curl -sS --fail-with-body -H "Content-Type: application/json" -d @- "$1"; }
 
           if [ -n "$RELEASE_WEBHOOK" ]; then
-            jq -n --arg content "**$title** is out"$'\n'"$links" '{content: $content}' | post "$RELEASE_WEBHOOK" \
+            jq -n --arg content "**$title** is out"$'\n'"$pitch"$'\n'"$links" '{content: $content}' | post "$RELEASE_WEBHOOK" \
               || echo "::warning::Échec de l'annonce Discord"
           else
             echo "::warning::DISCORD_RELEASE_WEBHOOK absent, annonce de release ignorée"

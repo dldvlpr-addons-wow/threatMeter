@@ -8,7 +8,7 @@ Install from CurseForge or Wago with your addon manager, or manually:
 1. Download the latest release zip.
 2. Extract it into `World of Warcraft/_classic_beta_/Interface/AddOns/`.
 3. Check that the folder is named `ForeverMeter` (same name as `ForeverMeter.toc`).
-4. Restart the game or type `/reload`.
+4. Restart the game. The first time, `/reload` is not enough: new textures and fonts load only at startup.
 
 ## First steps
 - One window opens on login. Type `/fm toggle` or click the ForeverMeter button in the addon compartment (next to the minimap) to show or hide it.

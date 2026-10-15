@@ -5,6 +5,7 @@ ignore:
   - uicheck.lua
   - "*.zip"
   - wiki
+  - STORE.md
 
 manual-changelog:
   filename: CHANGELOG.md

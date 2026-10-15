@@ -1,5 +1,20 @@
 # ForeverMeter
 
+## 1.14.0
+
+### New
+- **DPS display**: menu → Display → **DPS** shows damage with the per second value only.
+- **Per-window bar text**: the window menu sets total, per second and percent for that window only.
+  The options panel keeps the shared setting for windows that have none.
+- **My bar only**: window menu option; the window shows a single row, your own bar with your rank.
+- **No title bar**: window menu option; right-click the window or a bar to open its menu.
+- **Big number**: window menu option; your own value in large text, without bars.
+- In combat, totals are abbreviated by the game (`12K`).
+
+### Changed
+- Addon list description in English, translated into the 11 languages.
+- In-game help (`/fm`) lists `/fm debug`.
+
 ## 1.13.0
 
 ### New

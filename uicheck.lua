@@ -84,7 +84,8 @@ MenuUtil = { CreateContextMenu = function(owner, gen)
 end }
 
 local secretMode = false
-issecretvalue = function() return secretMode end
+-- isLocalPlayer (booléen) est NeverSecret : jamais secret, même en combat.
+issecretvalue = function(v) return secretMode and type(v) ~= "boolean" end
 local function src(name, class, total, guid, extra)
 	local s = { name = name, classFilename = class, totalAmount = total, amountPerSecond = total / 10, sourceGUID = guid, isLocalPlayer = guid == "Player-player",
 		specIconID = 456, combatSpells = { { spellID = 1, totalAmount = total * 0.6, amountPerSecond = 3 }, { spellID = 2, totalAmount = total * 0.4, amountPerSecond = 2, creatureName = "Ogre" } }, maxAmount = total * 0.6 }
@@ -312,6 +313,33 @@ assert(copy.shown and copy.box.text:find("^ForeverMeter") and copy.box.text:find
 copy:Hide(); secretMode = true; Call("Copier en texte"); secretMode = false; assert(not copy.shown, "copie en combat refusée")
 w1.menuButton.scripts.OnClick(w1.menuButton)
 Call("Remise à zéro"); assert(calls.reset == 1 and db.windows[2].view == "current")
+-- Affichage DPS : dégâts, débit seul. Colonnes, « ma barre seulement », sans titre et gros chiffre propres à la fenêtre.
+w1.menuButton.scripts.OnClick(w1.menuButton); Call("Nouvelle fenêtre")
+local w3 = ForeverMeterFrame3
+w3.menuButton.scripts.OnClick(w3.menuButton); Call("DPS")
+assert(#db.windows == 3 and db.windows[3].mode == "damage" and w3.bars[1].right.text == "200/s" and w1.bars[1].right.text == "2.0k (200/s, 66.7%)", w3.bars[1].right.text)
+assert(w3.title.text:find("^DPS") and Entry("DPS")[3]() == true and Entry("Dégâts")[3]() == false, w3.title.text)
+w3.menuButton.scripts.OnClick(w3.menuButton); Call("Total")
+assert(w3.bars[1].right.text == "2.0k (200/s)" and db.columns.total and w1.bars[1].right.text == "2.0k (200/s, 66.7%)", "colonnes de la fenêtre 3 seule")
+w3.menuButton.scripts.OnClick(w3.menuButton); Call("Total")
+w3.menuButton.scripts.OnClick(w3.menuButton); Call("Ma barre seulement")
+session.combatSources = crowd; Tick()
+assert(w3.rows == 1 and w3.bars[1].left.text == string.format("%d. Moi", #crowd) and not w3.bars[2].shown, tostring(w3.bars[1].left.text))
+session.combatSources = savedSources; Tick()
+w3.menuButton.scripts.OnClick(w3.menuButton); Call("Sans titre")
+assert(not w3.header.shown and w3.h == 17 + 3 and w3.bars[1].point[3] == 0, "sans titre : barres en haut, " .. tostring(w3.h))
+LAST_MENU = nil; w3.bars[1].scripts.OnMouseUp(w3.bars[1], "RightButton"); assert(LAST_MENU and Entry("Sans titre"), "menu au clic droit sur une barre")
+assert(not ForeverMeterDetailFrame.shown, "clic droit sans titre : pas de détail")
+LAST_MENU = nil; w3.scripts.OnMouseUp(w3, "RightButton"); assert(LAST_MENU, "menu au clic droit sur la fenêtre")
+Call("Gros chiffre")
+assert(w3.big.shown and w3.big.text == "200/s" and not w3.bars[1].shown and w3.h == 36, tostring(w3.big.text))
+AbbreviateNumbers = function(v) return "A" .. v end
+secretMode = true; Tick(); assert(w3.big.text == "200.0/s", w3.big.text)
+secretMode = false; AbbreviateNumbers = nil
+w3.scripts.OnMouseUp(w3, "RightButton"); Call("Dégâts"); assert(db.windows[3].columns == nil and w3.title.text:find("^Dégâts"), "quitter DPS : colonnes communes")
+w3.scripts.OnMouseUp(w3, "RightButton"); Call("DPS"); w3.header.scripts.OnMouseWheel(w3.header, -1)
+assert(db.windows[3].mode ~= "damage" and db.windows[3].columns == nil, "quitter DPS à la molette : colonnes communes")
+w3.scripts.OnMouseUp(w3, "RightButton"); Call("Fermer cette fenêtre"); assert(#db.windows == 2 and not w3.shown)
 -- Clic gauche titre = mode suivant ; molette
 w1.header.scripts.OnClick(w1.header, "LeftButton"); assert(db.windows[1].mode == "heal")
 w1.scripts.OnMouseWheel(w1, -1); assert(w1.scrollOffset == 0, "2 sources, 3 lignes : pas de défilement")

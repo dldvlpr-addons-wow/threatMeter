@@ -1,7 +1,17 @@
 ## Interface: 120100, 16001
 ## Title: ForeverMeter
-## Notes: Dégâts, soins, dégâts subis et menace. Jusqu'à 4 fenêtres, segments par combat, détail par sort, recap de mort, rapport en chat. /fm
-## Version: 1.13.0
+## Notes: Damage, healing, absorbs, damage taken, interrupts, dispels, deaths and threat meter for WoW Forever. Up to 4 windows, per-fight sessions, per-spell breakdown, death recap, chat report. /fm
+## Notes-frFR: Compteur de dégâts, soins, absorptions, dégâts subis, interruptions, dissipations, morts et menace pour WoW Forever. Jusqu'à 4 fenêtres, sessions par combat, détail par sort, récap de mort, rapport en chat. /fm
+## Notes-deDE: Schadens- und Bedrohungsmesser für WoW Forever: Schaden, Heilung, Absorptionen, erlittener Schaden, Unterbrechungen, Bannungen, Tode und Bedrohung. Bis zu 4 Fenster, Sitzungen pro Kampf, Details pro Zauber, Todesrückblick, Chat-Bericht. /fm
+## Notes-esES: Medidor de daño, sanación, absorciones, daño recibido, interrupciones, disipaciones, muertes y amenaza para WoW Forever. Hasta 4 ventanas, sesiones por combate, detalle por hechizo, resumen de muerte, informe en el chat. /fm
+## Notes-esMX: Medidor de daño, sanación, absorciones, daño recibido, interrupciones, disipaciones, muertes y amenaza para WoW Forever. Hasta 4 ventanas, sesiones por combate, detalle por hechizo, resumen de muerte, informe en el chat. /fm
+## Notes-itIT: Misuratore di danni, cure, assorbimenti, danni subiti, interruzioni, dissoluzioni, morti e minaccia per WoW Forever. Fino a 4 finestre, sessioni per combattimento, dettaglio per incantesimo, riepilogo della morte, resoconto in chat. /fm
+## Notes-ptBR: Medidor de dano, cura, absorções, dano recebido, interrupções, dissipações, mortes e ameaça para WoW Forever. Até 4 janelas, sessões por combate, detalhe por feitiço, resumo de morte, relatório no chat. /fm
+## Notes-ruRU: Счётчик урона, исцеления, поглощений, полученного урона, прерываний, рассеиваний, смертей и угрозы для WoW Forever. До 4 окон, сессии по боям, детали по заклинаниям, сводка смерти, отчёт в чат. /fm
+## Notes-koKR: WoW Forever용 피해, 치유, 흡수, 받은 피해, 차단, 해제, 죽음, 위협 수치 측정기. 최대 4개 창, 전투별 세션, 주문별 상세, 죽음 기록, 채팅 보고. /fm
+## Notes-zhCN: WoW Forever 的伤害、治疗、吸收、承受伤害、打断、驱散、死亡和仇恨统计。最多 4 个窗口，按战斗分段，按法术详情，死亡回顾，聊天报告。/fm
+## Notes-zhTW: WoW Forever 的傷害、治療、吸收、承受傷害、打斷、驅散、死亡和仇恨統計。最多 4 個視窗，按戰鬥分段，按法術詳情，死亡回顧，聊天報告。/fm
+## Version: 1.14.0
 ## X-Curse-Project-ID: 1701641
 ## X-Wago-ID: jK8Wgq6y
 ## SavedVariables: ForeverMeterDB
