@@ -2,6 +2,8 @@
 
 **Damage, healing, damage taken and threat meter built for WoW Forever** (client 1.60, 12.x engine).
 
+🌐 Website, changelog and FAQ: https://muscalab.com/addons/forever-meter
+
 On WoW Forever the combat log is forbidden to addons, so classic meters break.
 ForeverMeter reads Blizzard's own server-side meter (`C_DamageMeter`) and the game's threat API instead.
 Pure Lua, no libraries required.

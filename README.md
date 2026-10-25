@@ -91,6 +91,7 @@ WoW Forever 1.60 writes account SavedVariables but does not read them back. Sett
 (`Mirror.lua`): the table is stored in `g_addonCategoriesCollapsed` (Blizzard_AddOnList save,
 `WTF/SavedVariables/`, read back at startup) and copied into `ForeverMeterMirror1..8` CVars (which survive
 `/reload`). If the saved data comes back empty, these copies replace it.
+Website: https://muscalab.com/addons/forever-meter
 
 ## License
 GPL-3.0-or-later (see [LICENSE](LICENSE)). Fonts in `Media/Fonts/` are under the SIL Open Font License 1.1
