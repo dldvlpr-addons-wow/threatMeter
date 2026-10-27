@@ -1040,7 +1040,8 @@ local function RenderThreat(win)
 	local warn = mine and FM.ShouldWarn(mine, db.warnPct) or false
 	if warn and warnedGuid ~= mine.guid then
 		warnedGuid = mine.guid
-		if db.warnSound then PlaySound(WARN_SOUND, "Master") end
+		-- Un autre addon qui alerte déjà sur la menace (MuscaUI) pose FM.externalWarning : un seul son.
+		if db.warnSound and not FM.externalWarning then PlaySound(WARN_SOUND, "Master") end
 	elseif mine and not warn then
 		warnedGuid = nil
 	end
