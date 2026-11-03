@@ -25,9 +25,11 @@ New media files are only picked up after restarting the game. `/reload` is not e
 ## Why can't I compare players during combat?
 Other players' data is secret during combat. The comparison comes back once combat ends.
 
-## Threat shows "unavailable in combat on this client"
+## Threat shows no numbers against a boss, or "unavailable in combat on this client"
 Against some enemies (bosses especially), threat values are secret in combat: the game does not let addons read them.
-ForeverMeter shows this message in the title instead of a wrong number.
+ForeverMeter then shows each player's threat status instead (aggro, insecure aggro, above the tank), without numbers.
+The warning goes off when your status is "above the tank", whatever the `/fm warn` threshold.
+If the status is secret too, the title shows "unavailable" instead of a wrong number.
 
 ## Some lines are missing from a copy, or a report line is shown only to me
 In an instance, some names (creatures, restricted players) are secret. The game refuses them in chat

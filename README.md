@@ -6,10 +6,10 @@ Pure Lua, no libraries required: one main file, a settings mirror and 11 locale 
 > **First install: restart the game once.** The game only loads new texture and font files at startup,
 > so `/reload` is not enough the first time. After an update, `/reload` is usually enough; restart if something looks missing.
 
-## What's new in 1.14.0
-- **DPS display**: menu → Display → **DPS** shows damage with the per second value only.
-- Per window, from its menu: bar text, **My bar only**, **No title bar**, **Big number**.
-- In combat, totals are abbreviated by the game (`12K`).
+## What's new in 1.15.0
+- **Threat against a boss**: the game hides the numbers, so each bar shows the threat status instead
+  (aggro, insecure aggro, above the tank). The warning goes off when you are above the tank.
+- **Threat warning**: the sound plays again only after your threat has stayed below the threshold for 3 seconds.
 
 Earlier versions: see [CHANGELOG.md](CHANGELOG.md).
 
@@ -18,7 +18,8 @@ On this engine, `COMBAT_LOG_EVENT_UNFILTERED` is forbidden to addons (ADDON_ACTI
 Data comes from `C_DamageMeter`, Blizzard's server-side meter. In combat, names, amounts and GUIDs
 are "secret values": they can be displayed, but not compared or summed. The addon shows the bars
 in the order returned by the API and fills in the rest (percentages, per-spell breakdown) out of combat.
-Threat comes from `UnitDetailedThreatSituation`.
+Threat comes from `UnitDetailedThreatSituation`. Against a boss, where the values are secret, the bars
+show the status from `UnitThreatSituation` (aggro, insecure aggro, above the tank) without numbers.
 
 ## Installation
 Install from CurseForge or Wago, or copy the folder into

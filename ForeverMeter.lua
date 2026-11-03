@@ -18,6 +18,7 @@ local L = {}
 NS.L = L
 local FM = {}
 _G.ForeverMeter = FM
+local issecretvalue = issecretvalue or function() return false end
 
 -- Modes : clé -> { label, type Enum.DamageMeterType }. La menace n'est pas dans C_DamageMeter.
 FM.MODES = { "damage", "heal", "absorbs", "taken", "interrupts", "dispels", "deaths", "threat" }
@@ -257,14 +258,22 @@ function FM.SortThreat(list)
 	table.sort(list, function(a, b)
 		if a.tanking ~= b.tanking then return a.tanking end
 		if a.pct ~= b.pct then return a.pct > b.pct end
+		local sa, sb = issecretvalue(a.name), issecretvalue(b.name)
+		if sa or sb then return sb and not sa end -- noms secrets en dernier, égaux entre eux
 		return a.name < b.name
 	end)
 	return list
 end
 
+-- Ligne en statut seul (row.status, valeurs secrètes contre un boss) : alerte au statut 1, menace au-dessus du tank.
 function FM.ShouldWarn(row, warnPct)
-	return row ~= nil and not row.tanking and (row.pct or 0) >= warnPct
+	if row == nil or row.tanking then return false end
+	if row.status then return row.status == 1 end
+	return (row.pct or 0) >= warnPct
 end
+
+-- Statut UnitThreatSituation -> remplissage de barre, faute de pourcentage lisible.
+FM.STATUS_PCT = { [0] = 25, 50, 75, 100 }
 
 function FM.ComputeTps(previous, value, now)
 	if not previous or now <= previous.t then return 0 end
@@ -408,12 +417,11 @@ end
 local UnitGUID, UnitName, UnitClass, UnitExists = UnitGUID, UnitName, UnitClass, UnitExists
 local UnitAffectingCombat = UnitAffectingCombat
 local UnitCanAttack, UnitIsDead, UnitIsUnit = UnitCanAttack, UnitIsDead, UnitIsUnit
-local UnitDetailedThreatSituation = UnitDetailedThreatSituation
+local UnitDetailedThreatSituation, UnitThreatSituation = UnitDetailedThreatSituation, UnitThreatSituation
 local IsInRaid, IsInGroup, GetNumGroupMembers = IsInRaid, IsInGroup, GetNumGroupMembers
 local GetTime, PlaySound = GetTime, PlaySound
 local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 local WARN_SOUND = SOUNDKIT and SOUNDKIT.RAID_WARNING or 8959
-local issecretvalue = issecretvalue or function() return false end
 local DamageMeter = C_DamageMeter
 local DeathRecap = C_DeathRecap
 
@@ -429,6 +437,8 @@ local function SetTitle(fs, text)
 	if issecretvalue(text) or issecretvalue(current) or current ~= text then fs:SetText(text) end
 end
 local warnedGuid = nil                    -- partagé : deux fenêtres en mode menace ne jouent le son qu'une fois
+local warnRearmAt = nil                   -- GetTime() à partir duquel l'alerte se réarme, après être repassé sous le seuil
+local WARN_REARM_DELAY = 3
 
 local function Print(msg)
 	DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99ForeverMeter|r : " .. msg)
@@ -598,46 +608,68 @@ end
 -- Liste et lignes réutilisées d'un tour à l'autre : la liste rendue n'est valable que jusqu'au prochain appel.
 local threatList, threatRows = {}, {}
 
+-- Renvoie true si l'unité est sur la table de menace mais illisible (statut secret).
 local function AddThreatRow(u, enemy, now)
 	if not UnitExists(u) then return end
 	local isTanking, status, pct, rawPct, value = UnitDetailedThreatSituation(u, enemy)
+	-- Cible boss : valeurs secrètes. Repli sur le statut 0-3, lisible dans plus de cas (SecretWhenUnitThreatStateRestricted).
+	local statusOnly = issecretvalue(isTanking) or issecretvalue(status) or issecretvalue(pct) or issecretvalue(rawPct) or issecretvalue(value)
+	if statusOnly then status = UnitThreatSituation(u, enemy) end
+	if issecretvalue(status) then return true end
 	if not status then return end
-	-- Cible boss : valeurs secrètes, à faire échouer ici sous le pcall de RenderThreat (« menace indisponible »).
-	local isPlayer = UnitIsUnit(u, "player")
-	if issecretvalue(isTanking) or issecretvalue(pct) or issecretvalue(rawPct) or issecretvalue(value) or issecretvalue(isPlayer) then
-		error("secret threat values")
-	end
 	local guid = UnitGUID(u)
+	local isPlayer = UnitIsUnit(u, "player")
+	if issecretvalue(isPlayer) then -- comparaison restreinte : repli sur le GUID, lisible pour un membre du groupe
+		local myGuid = UnitGUID("player")
+		isPlayer = u == "player" or (not issecretvalue(guid) and not issecretvalue(myGuid) and guid == myGuid)
+	end
+	if issecretvalue(guid) then guid = u end -- identité restreinte : le jeton sert de clé
 	local _, class = UnitClass(u)
-	value = value or 0
-	-- Deux fenêtres de menace lisent la même unité au même GetTime() : le débit du premier passage est repris.
-	local sample = threatSamples[guid]
 	local tps
-	if sample and sample.t == now then
-		tps = sample.tps
+	if statusOnly then
+		value = nil
 	else
-		tps = FM.ComputeTps(sample, value, now)
-		if sample then sample.v, sample.t, sample.tps = value, now, tps else threatSamples[guid] = { v = value, t = now, tps = tps } end
+		value = value or 0
+		-- Deux fenêtres de menace lisent la même unité au même GetTime() : le débit du premier passage est repris.
+		local sample = threatSamples[guid]
+		if sample and sample.t == now then
+			tps = sample.tps
+		else
+			tps = FM.ComputeTps(sample, value, now)
+			if sample then sample.v, sample.t, sample.tps = value, now, tps else threatSamples[guid] = { v = value, t = now, tps = tps } end
+		end
 	end
 	local n = #threatList + 1
 	local row = threatRows[n] or {}
 	threatRows[n] = row
 	row.name, row.class, row.guid = UnitName(u) or u, class, guid
-	row.tanking = isTanking and true or false
-	row.pct = isTanking and 100 or (rawPct or pct or 0) -- rawPct est faux pour le tank
+	if statusOnly then
+		row.status, row.tanking, row.pct = status, status >= 2, FM.STATUS_PCT[status] or 0
+	else
+		row.status = nil
+		row.tanking = isTanking and true or false
+		row.pct = isTanking and 100 or (rawPct or pct or 0) -- rawPct est faux pour le tank
+	end
 	row.value, row.tps, row.isPlayer = value, tps, isPlayer
 	threatList[n] = row
 end
 
+-- Renvoie la liste triée, et true si au moins une unité était illisible.
 local function CollectThreat(enemy)
 	wipe(threatList)
 	local now = GetTime()
 	local units, pets = GroupUnits()
+	local hidden = false
 	for i, unit in ipairs(units) do
-		AddThreatRow(unit, enemy, now)
-		if db.showPets then AddThreatRow(pets[i], enemy, now) end
+		if AddThreatRow(unit, enemy, now) then hidden = true end
+		if db.showPets and AddThreatRow(pets[i], enemy, now) then hidden = true end
 	end
-	return FM.SortThreat(threatList)
+	return FM.SortThreat(threatList), hidden
+end
+
+-- Texte d'une ligne en statut seul : libellé, vide au statut 0.
+local function StatusLabel(row)
+	return row.status == 1 and L.THREAT_STATUS_1 or row.status == 2 and L.THREAT_STATUS_2 or row.status == 3 and L.THREAT_STATUS_3 or ""
 end
 
 ------------------------------------------------------------------------
@@ -1024,9 +1056,9 @@ end
 
 local function RenderThreat(win)
 	local enemy = ThreatTarget()
-	local ok, list = true, threatList
-	if enemy then ok, list = pcall(CollectThreat, enemy) else wipe(threatList) end
-	if ok then
+	local ok, list, hidden = true, threatList, false
+	if enemy then ok, list, hidden = pcall(CollectThreat, enemy) else wipe(threatList) end
+	if ok and not (hidden and not list[1]) then
 		SetTitle(win.title, L.MODE_THREAT .. " · " .. (enemy and (UnitName(enemy) or "?") or L.THREAT_NO_TARGET))
 	else
 		SetTitle(win.title, L.MODE_THREAT .. " · " .. L.THREAT_UNAVAILABLE)
@@ -1035,14 +1067,20 @@ local function RenderThreat(win)
 	end
 	local mine
 	for _, row in ipairs(list) do if row.isPlayer then mine = row; break end end
-	if win.cfg.bigNumber then win.big:SetText(mine and string.format("%d%%", mine.pct) or "") end
+	if win.cfg.bigNumber then win.big:SetText(mine and (mine.status and StatusLabel(mine) or string.format("%d%%", mine.pct)) or "") end
 	-- Alerte sur sa propre ligne, même sans barre affichée (gros chiffre).
 	local warn = mine and FM.ShouldWarn(mine, db.warnPct) or false
-	if warn and warnedGuid ~= mine.guid then
-		warnedGuid = mine.guid
-		if db.warnSound then PlaySound(WARN_SOUND, "Master") end
-	elseif mine and not warn then
-		warnedGuid = nil
+	if warn then
+		warnRearmAt = nil
+		if warnedGuid ~= mine.guid then
+			warnedGuid = mine.guid
+			if db.warnSound then PlaySound(WARN_SOUND, "Master") end
+		end
+	elseif mine then
+		-- Réarmement après 3 s sous le seuil : une menace qui oscille autour (statut 0-1 contre un boss) ne rejoue pas le son.
+		local now = GetTime()
+		warnRearmAt = warnRearmAt or now + WARN_REARM_DELAY
+		if now >= warnRearmAt then warnedGuid = nil end
 	end
 	for i = 1, win.rows do
 		local bar, row = win.bars[i], list[i]
@@ -1053,7 +1091,7 @@ local function RenderThreat(win)
 			if row.tanking then bar:SetStatusBarColor(0.9, 0.2, 0.2) else bar:SetStatusBarColor(ClassColor(row.class)) end
 			SetClassIcon(bar, row.class)
 			bar.left:SetText((row.isPlayer and "> " or "") .. row.name)
-			bar.right:SetText(string.format("%s  %s/s  %d%%", FM.FormatValue(row.value), FM.FormatValue(row.tps), row.pct))
+			bar.right:SetText(row.status and StatusLabel(row) or string.format("%s  %s/s  %d%%", FM.FormatValue(row.value), FM.FormatValue(row.tps), row.pct))
 			bar.glow:SetShown(row == mine and warn)
 			bar.source, bar.sourceGuid = nil, nil
 			bar:Show()

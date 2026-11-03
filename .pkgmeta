@@ -6,6 +6,7 @@ ignore:
   - "*.zip"
   - wiki
   - STORE.md
+  - tickets
 
 manual-changelog:
   filename: CHANGELOG.md
