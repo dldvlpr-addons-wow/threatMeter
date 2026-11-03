@@ -11,7 +11,7 @@
 ## Notes-koKR: WoW Forever용 피해, 치유, 흡수, 받은 피해, 차단, 해제, 죽음, 위협 수치 측정기. 최대 4개 창, 전투별 세션, 주문별 상세, 죽음 기록, 채팅 보고. /fm
 ## Notes-zhCN: WoW Forever 的伤害、治疗、吸收、承受伤害、打断、驱散、死亡和仇恨统计。最多 4 个窗口，按战斗分段，按法术详情，死亡回顾，聊天报告。/fm
 ## Notes-zhTW: WoW Forever 的傷害、治療、吸收、承受傷害、打斷、驅散、死亡和仇恨統計。最多 4 個視窗，按戰鬥分段，按法術詳情，死亡回顧，聊天報告。/fm
-## Version: 1.14.0
+## Version: 1.15.0
 ## X-Curse-Project-ID: 1701641
 ## X-Wago-ID: jK8Wgq6y
 ## X-Website: https://muscalab.com/addons/forever-meter

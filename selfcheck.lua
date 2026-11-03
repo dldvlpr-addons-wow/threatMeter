@@ -42,6 +42,10 @@ local t = FM.SortThreat({
 })
 assert(t[1].name == "Tank" and t[2].name == "Alice" and t[3].name == "Bob")
 assert(FM.ShouldWarn({ tanking = false, pct = 92 }, 90) and not FM.ShouldWarn({ tanking = true, pct = 100 }, 90))
+-- Statut seul (boss) : alerte au statut 1 seulement, seuil ignoré.
+assert(FM.ShouldWarn({ tanking = false, status = 1, pct = FM.STATUS_PCT[1] }, 90))
+assert(not FM.ShouldWarn({ tanking = false, status = 0, pct = FM.STATUS_PCT[0] }, 10))
+assert(not FM.ShouldWarn({ tanking = true, status = 2, pct = FM.STATUS_PCT[2] }, 10))
 assert(FM.ComputeTps({ v = 100, t = 10 }, 300, 12) == 100 and FM.ComputeTps({ v = 300, t = 10 }, 100, 12) == 0)
 
 -- Recap de mort : derniers événements, du plus ancien au plus récent, temps relatif au dernier coup.

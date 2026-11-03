@@ -1,5 +1,14 @@
 # ForeverMeter
 
+## 1.15.0
+
+### Changed
+- **Threat against a boss**: the game hides threat values, so each bar now shows the threat status
+  instead (aggro, insecure aggro, above the tank), without numbers. The warning goes off when your
+  status is "above the tank". The window says "unavailable" only when the status is hidden too.
+- **Threat warning**: the sound plays again only after your threat has stayed below the threshold for
+  3 seconds, so threat that hovers around the threshold no longer repeats it.
+
 ## 1.14.0
 
 ### New

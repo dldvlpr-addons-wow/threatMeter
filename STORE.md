@@ -32,7 +32,8 @@ Type `/fm` in game for the full command list.
 ## Known limits of WoW Forever
 - In combat, names and amounts are "secret values": the game lets addons display them, not compare or add them.
   Bars keep the game's order, and percentages, the breakdown and the comparison fill in once combat ends.
-- Threat against some enemies (bosses especially) is secret in combat: the window says so instead of showing a wrong number.
+- Threat against some enemies (bosses especially) is secret in combat: the bars show the threat status (aggro, insecure aggro,
+  above the tank) without numbers. If the status is hidden too, the window says so instead of showing a wrong number.
 - The options panel cannot open during combat: it opens as soon as combat ends.
 
 ## Links

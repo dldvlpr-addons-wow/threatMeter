@@ -44,6 +44,7 @@ SOUNDKIT = { RAID_WARNING = 1 }
 GetLocale = function() return "frFR" end
 cursorX, cursorY = 0, 0
 GetCursorPosition = function() return cursorX, cursorY end
+local SECRET = { secret = true } -- valeur secrète simulée, reconnue par issecretvalue
 local testClock, testThreat, testTanking, sounds = nil, nil, true, 0 -- forcés par le test des deux fenêtres de menace (GetTime et la menace sont des locales de l'addon)
 GetTime = function() return testClock or os.clock() end
 PlaySound = function() sounds = sounds + 1 end
@@ -59,10 +60,17 @@ UnitAffectingCombat = function() return testCombat end
 InCombatLockdown = function() return testCombat end
 UnitCanAttack = function() return true end
 UnitIsDead = function() return false end
-UnitIsUnit = function(a, b) return a == b end
+local testCompareSecret = false
+UnitIsUnit = function(a, b) if testCompareSecret then return SECRET end return a == b end
 shiftDown = false
 IsShiftKeyDown = function() return shiftDown end
-UnitDetailedThreatSituation = function(u) return u == "player" and testTanking, 3, 95, 95, testThreat or 1000 end
+-- testBoss : valeurs de UnitDetailedThreatSituation secrètes, statut de UnitThreatSituation lisible (ou secret si "secret").
+local testBoss, testStatus = nil, { player = 3, party1 = 1 }
+UnitDetailedThreatSituation = function(u)
+	if testBoss then return SECRET, SECRET, SECRET, SECRET, SECRET end
+	return u == "player" and testTanking, 3, 95, 95, testThreat or 1000
+end
+UnitThreatSituation = function(u) return testBoss == "secret" and SECRET or testStatus[u] end
 IsInRaid = function() return false end
 local inGroup = true
 IsInGroup = function() return inGroup end
@@ -85,7 +93,7 @@ end }
 
 local secretMode = false
 -- isLocalPlayer (booléen) est NeverSecret : jamais secret, même en combat.
-issecretvalue = function(v) return secretMode and type(v) ~= "boolean" end
+issecretvalue = function(v) return v == SECRET or (secretMode and type(v) ~= "boolean") end
 local function src(name, class, total, guid, extra)
 	local s = { name = name, classFilename = class, totalAmount = total, amountPerSecond = total / 10, sourceGUID = guid, isLocalPlayer = guid == "Player-player",
 		specIconID = 456, combatSpells = { { spellID = 1, totalAmount = total * 0.6, amountPerSecond = 3 }, { spellID = 2, totalAmount = total * 0.4, amountPerSecond = 2, creatureName = "Ogre" } }, maxAmount = total * 0.6 }
@@ -201,6 +209,28 @@ assert(sounds == 1, "alerte jouée une seule fois : " .. sounds)
 Fire("PLAYER_TARGET_CHANGED"); Tick()
 assert(sounds == 2, "alerte rejouée sur la nouvelle cible : " .. sounds)
 testClock, testThreat, testTanking = nil, nil, true
+-- Cible boss : barres en statut seul, sans chiffres ; alerte au statut 1 ; « indisponible » si le statut est secret aussi.
+testBoss, sounds = true, 0; Fire("PLAYER_TARGET_CHANGED"); Tick()
+assert(not w1.title.text:find("indisponible") and w1.bars[1].left.text == "> Moi" and w1.bars[1].right.text == "aggro" and w1.bars[2].right.text == "au-dessus du tank" and sounds == 0,
+	w1.title.text .. " / " .. tostring(w1.bars[1].right.text) .. " / " .. tostring(w1.bars[2].right.text))
+testStatus.player = 1; Tick()
+assert(sounds == 1 and w1.bars[1].right.text == "au-dessus du tank", "alerte statut 1 : " .. sounds)
+-- Statut qui oscille 1 -> 0 -> 1 en moins de 3 s : pas de nouveau son ; réarmé après 3 s sous le seuil.
+testClock = 200; testStatus.player = 0; Tick(); testStatus.player = 1; Tick()
+assert(sounds == 1, "oscillation : " .. sounds)
+testStatus.player = 0; Tick(); testClock = 204; Tick(); testStatus.player = 1; Tick()
+assert(sounds == 2, "réarmé après 3 s : " .. sounds)
+testClock = nil
+-- Comparaison d'unités secrète : la ligne du joueur reste reconnue par le GUID.
+testCompareSecret = true; Tick()
+assert(w1.bars[1].left.text == "> Moi" and w1.bars[2].left.text == "party1", tostring(w1.bars[1].left.text) .. " / " .. tostring(w1.bars[2].left.text))
+testCompareSecret = false
+testBoss = "secret"; Tick()
+assert(w1.title.text:find("indisponible") and not w1.bars[1].shown, w1.title.text)
+testBoss, testStatus.player = nil, 3
+-- Tri : nom secret, pas de comparaison de chaîne
+local sorted = ForeverMeter.SortThreat({ { name = SECRET, tanking = false, pct = 50 }, { name = "Bob", tanking = false, pct = 50 }, { name = SECRET, tanking = true, pct = 100 } })
+assert(sorted[1].tanking)
 ForeverMeterFrame2.cfg.mode = "damage"
 slash("mode deaths")
 assert(w1.bars[1].right.text == "2.0k · 0:42", w1.bars[1].right.text)
