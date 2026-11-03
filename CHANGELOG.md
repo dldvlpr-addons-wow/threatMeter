@@ -1,5 +1,11 @@
 # ForeverMeter
 
+## 1.15.1
+
+### Changed
+- **Threat warning with MuscaUI**: when MuscaUI already warns about threat, ForeverMeter no longer plays its own sound.
+- Project website link in the addon list and the README.
+
 ## 1.15.0
 
 ### Changed

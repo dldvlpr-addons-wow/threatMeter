@@ -6,7 +6,10 @@ Pure Lua, no libraries required: one main file, a settings mirror and 11 locale 
 > **First install: restart the game once.** The game only loads new texture and font files at startup,
 > so `/reload` is not enough the first time. After an update, `/reload` is usually enough; restart if something looks missing.
 
-## What's new in 1.15.0
+## What's new in 1.15.1
+- **Threat warning with MuscaUI**: ForeverMeter no longer plays its sound when MuscaUI already warns.
+
+### 1.15.0
 - **Threat against a boss**: the game hides the numbers, so each bar shows the threat status instead
   (aggro, insecure aggro, above the tank). The warning goes off when you are above the tank.
 - **Threat warning**: the sound plays again only after your threat has stayed below the threshold for 3 seconds.
