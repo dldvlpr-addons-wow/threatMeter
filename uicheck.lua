@@ -244,6 +244,13 @@ slash("texture GLASS"); assert(db.barTexture == "glass"); slash("texture xx"); a
 slash("options"); ForeverMeterOptionSlider1.scripts.OnValueChanged(ForeverMeterOptionSlider1, 14.2); assert(db.fontSize == 14); ForeverMeterOptionSlider2.scripts.OnValueChanged(ForeverMeterOptionSlider2, 1.5); assert(db.scale == 1.5); slash("font default"); slash("scale 1")
 ForeverMeterOptionSlider5.scripts.OnValueChanged(ForeverMeterOptionSlider5, 24); assert(db.rowHeight == 24 and w1.bars[1].h == 24); ForeverMeterOptionSlider5.scripts.OnValueChanged(ForeverMeterOptionSlider5, 16)
 assert(w1.bgAlpha == 0.6); ForeverMeterOptionSlider6.scripts.OnValueChanged(ForeverMeterOptionSlider6, 0.5); assert(db.bgAlpha == 0.5 and w1.bgAlpha == 0.5 and ForeverMeterDetailFrame.bgAlpha == 0.5); ForeverMeterOptionSlider6.scripts.OnValueChanged(ForeverMeterOptionSlider6, 0.6)
+-- Fenêtres, lignes et largeur : mêmes chemins que /fm windows, /fm rows et /fm width
+local windowCount = #db.windows
+ForeverMeterOptionSlider7.scripts.OnValueChanged(ForeverMeterOptionSlider7, 9); assert(#db.windows == ForeverMeter.MAX_WINDOWS, "fenêtres bornées")
+ForeverMeterOptionSlider7.scripts.OnValueChanged(ForeverMeterOptionSlider7, windowCount); assert(#db.windows == windowCount)
+db.windows[1].rows = 9; ForeverMeterOptionSlider8.scripts.OnValueChanged(ForeverMeterOptionSlider8, 7.4); assert(db.rows == 7 and db.windows[1].rows == nil and w1.rows == 7, "lignes communes")
+ForeverMeterOptionSlider9.scripts.OnValueChanged(ForeverMeterOptionSlider9, 1000); assert(db.width == 600 and w1.w == 600, "largeur bornée")
+slash("rows 3"); slash("width 300")
 slash("font oswald"); eventsFrame.scripts.OnUpdate(eventsFrame, 1); eventsFrame.scripts.OnUpdate(eventsFrame, 1); slash("font default")
 slash("mode damage"); slash("test"); assert(w1.title.text == "Dégâts · mode test" and w1.bars[3].shown and w1.bars[1].left.text == "1. WARRIOR" and not w1.bars[1].sourceGuid, w1.title.text)
 slash("test"); assert(w1.title.text:find("Combat actuel") and w1.bars[1].left.text == "1. Moi" and not w1.bars[3].shown, w1.title.text)
@@ -264,16 +271,33 @@ w1.bars[2].scripts.OnEnter(w1.bars[2])
 assert(GameTooltip.text == "Bob" and GameTooltip.texts[2]:find("Sort2 | "), table.concat(GameTooltip.texts, " ; "))
 bar.scripts.OnLeave(bar)
 -- Tooltip mode dégâts subis : nom de créature affiché
+-- Sorts évitables et mortels : marqués en dégâts subis seulement
+local mySpells = session.combatSources[1].combatSpells
+mySpells[1].isDeadly, mySpells[2].isAvoidable = true, true
 slash("mode taken"); GameTooltip.texts = {}
 bar.scripts.OnEnter(bar)
-assert(GameTooltip.texts[2]:find("Sort2 · Ogre"), GameTooltip.texts[2])
+assert(GameTooltip.texts[2]:find("Sort2 · Ogre") and GameTooltip.texts[2]:find("évitable", 1, true) and GameTooltip.texts[1]:find("mortel", 1, true), GameTooltip.texts[1] .. " ; " .. GameTooltip.texts[2])
+slash("mode damage"); GameTooltip.texts = {}
+bar.scripts.OnEnter(bar)
+assert(not GameTooltip.texts[1]:find("mortel", 1, true) and not GameTooltip.texts[2]:find("évitable", 1, true), "mode dégâts : pas de marque")
 -- Tooltip mode morts : recap
 slash("mode deaths"); GameTooltip.texts = {}
 bar.scripts.OnEnter(bar)
-assert(#GameTooltip.texts == 2 and GameTooltip.texts[1] == "-2.0s  Sort5 (Ogre) | -900  100" and GameTooltip.texts[2] == "0.0s  Frappe | -200  0", table.concat(GameTooltip.texts, " ; "))
+assert(#GameTooltip.texts == 3 and GameTooltip.texts[1] == "-2.0s  Sort5 (Ogre) | -900  100" and GameTooltip.texts[2] == "0.0s  Frappe | -200  0" and GameTooltip.texts[3] == NS.L.TIP_REPORT_DEATH, table.concat(GameTooltip.texts, " ; "))
 GameTooltip.texts = {}
 w1.bars[2].scripts.OnEnter(w1.bars[2])
 assert(GameTooltip.texts[1] == NS.L.TIP_NO_RECAP, GameTooltip.texts[1])
+-- Maj+clic en mode morts : récap de la mort dans le chat ; sans récap, rien n'est envoyé
+local deathSent, chatSend = {}, SendChatMessage
+SendChatMessage = function(msg, ch) deathSent[#deathSent + 1] = ch .. "> " .. msg end
+shiftDown = true; bar.scripts.OnMouseUp(bar); w1.bars[2].scripts.OnMouseUp(w1.bars[2]); shiftDown = false
+assert(#deathSent == 3 and deathSent[1] == "PARTY> ForeverMeter : mort de Moi" and deathSent[2] == "PARTY> -2.0s  Sort5 (Ogre)  -900  100", table.concat(deathSent, " ; "))
+-- /fm report death [N] : même récap, ligne N de la première fenêtre Morts
+deathSent = {}; slash("report death 1")
+assert(#deathSent == 3 and deathSent[1] == "PARTY> ForeverMeter : mort de Moi", table.concat(deathSent, " ; "))
+deathSent = {}; slash("report death 9"); assert(#deathSent == 0, "ligne absente : rien envoyé")
+SendChatMessage = chatSend
+assert(not (ForeverMeterDetailFrame and ForeverMeterDetailFrame.shown), "Maj+clic en mode morts : pas de détail")
 
 -- Clic sur une barre : fenêtre de détail, partagée entre fenêtres
 slash("mode damage")
@@ -341,6 +365,43 @@ Call("Global"); assert(db.windows[2].view == "overall")
 Call("Copier en texte"); local copy = ForeverMeterCopyFrame
 assert(copy.shown and copy.box.text:find("^ForeverMeter") and copy.box.text:find("\n1%. Moi") and copy.box.text:find("\n2%. "), copy.box.text)
 copy:Hide(); secretMode = true; Call("Copier en texte"); secretMode = false; assert(not copy.shown, "copie en combat refusée")
+-- Filtre des ennemis (dégâts subis par les ennemis) : classification jamais secrète, rang des lignes visibles
+assert(not Entry("Boss seulement"), "filtre absent hors mode ennemis")
+session.combatSources[1].classification, session.combatSources[2].classification = "normal", "worldboss"
+db.windows[2].mode = "enemytaken"; Tick()
+w2.menuButton.scripts.OnClick(w2.menuButton); Call("Boss seulement")
+assert(db.windows[2].filter == "boss" and w2.bars[1].left.text == "1. Bob" and not w2.bars[2].shown, tostring(w2.bars[1].left.text))
+w2.menuButton.scripts.OnClick(w2.menuButton); Call("Élites et boss"); assert(w2.bars[1].left.text == "1. Bob" and not w2.bars[2].shown)
+-- Mode test avec un filtre : les fausses lignes restent affichées
+slash("test"); assert(w2.bars[3].shown, "mode test filtré : lignes affichées"); slash("test")
+w2.menuButton.scripts.OnClick(w2.menuButton); Call("Tous"); assert(db.windows[2].filter == nil and w2.bars[2].shown)
+session.combatSources[1].classification, session.combatSources[2].classification = nil, nil
+db.windows[2].mode = "heal"; Tick()
+-- Couleur des barres : sélecteur du client, Annuler remet la précédente, couleur de classe par défaut
+ColorPickerFrame = { SetupColorPickerAndShow = function(self, info) self.info = info end, GetColorRGB = function() return 0.1, 0.2, 0.3 end }
+local barColor
+w1.bars[1].SetStatusBarColor = function(_, r, g, b) barColor = string.format("%.1f %.1f %.1f", r, g, b) end
+w1.menuButton.scripts.OnClick(w1.menuButton); Call("Couleur choisie...")
+local picker = ColorPickerFrame.info
+assert(picker.r == 1 and picker.g == 0.5 and picker.b == 0 and not picker.hasOpacity, "départ : couleur de classe du joueur")
+picker.swatchFunc(); Tick()
+assert(db.windows[1].barColor.g == 0.2 and barColor == "0.1 0.2 0.3" and not db.windows[2].barColor, tostring(barColor))
+picker.cancelFunc(); assert(db.windows[1].barColor == nil, "Annuler : couleur précédente")
+picker.swatchFunc(); w1.menuButton.scripts.OnClick(w1.menuButton); assert(Entry("Couleur choisie...")[3]())
+Call("Couleur de classe"); Tick(); assert(db.windows[1].barColor == nil and barColor == "1.0 0.5 0.0", tostring(barColor))
+-- Export puis import : même réglages ; chaîne invalide refusée, rien ne change
+db.windows[1].barColor = { r = 0.1, g = 0.2, b = 0.3 }
+slash("export"); local copyFrame = ForeverMeterCopyFrame; local exported = copyFrame.box.text
+assert(exported:find("^MIR1") and not exported:find("forbidden", 1, true) and not copyFrame.importButton.shown, exported)
+db.warnPct = 42; db.windows[1].barColor = nil
+slash("import"); assert(copyFrame.importButton.shown and copyFrame.box.text == "")
+copyFrame.box.text = exported .. ";windows.#1.mode=sbogus"; copyFrame.importButton.scripts.OnClick()
+assert(db.warnPct == 42 and copyFrame.shown, "mode inconnu : import refusé")
+copyFrame.box.text = exported:gsub("warnPct=n%d+", "warnPct=n999"); copyFrame.importButton.scripts.OnClick()
+assert(db.warnPct == 42, "hors bornes : import refusé")
+copyFrame.box.text = "  " .. exported .. "\n"; copyFrame.importButton.scripts.OnClick()
+assert(db.warnPct ~= 42 and db.windows[1].barColor.b == 0.3 and #db.windows == 2 and not copyFrame.shown and db.forbidden, "import appliqué")
+db.windows[1].barColor = nil
 w1.menuButton.scripts.OnClick(w1.menuButton)
 Call("Remise à zéro"); assert(calls.reset == 1 and db.windows[2].view == "current")
 -- Affichage DPS : dégâts, débit seul. Colonnes, « ma barre seulement », sans titre et gros chiffre propres à la fenêtre.

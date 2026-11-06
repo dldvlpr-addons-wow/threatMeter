@@ -1,5 +1,29 @@
 # ForeverMeter
 
+## 1.16.0
+
+### New
+- **Avoidable and deadly spells**: in the damage taken modes, the breakdown, the tooltip and the report
+  mark the spells the game flags as avoidable or deadly.
+- **Death recap to chat**: in deaths mode, shift-click a bar to send that death's last hits to the group chat,
+  or type `/fm report death [N]` for the death on line N of the first deaths window.
+- **Settings export and import**: `/fm export` and `/fm import`, or the buttons in the options panel.
+  The pasted string is checked in full before anything changes; an invalid string changes nothing.
+- **Boss filter**: in enemy damage taken, the window menu shows all enemies, elites and bosses, or bosses only.
+- **Bar colour per window**: window menu → class colour or a colour chosen in the colour picker.
+- **Options panel**: number of windows, shared rows and shared width.
+
+### Changed
+- Offline checks run before each release is published.
+- Options panel: the bottom buttons (defaults, export, import) share one row so nothing is cut off,
+  and the panel shows imported settings at once.
+
+### Fixed
+- Death recap: a hidden creature name in an instance no longer raises an error in the tooltip or the chat report;
+  the chat report leaves the hidden name out.
+- Enemy filter in combat: the largest shown enemy fills its bar.
+- Test mode (`/fm test`) shows its bars even when an enemy filter is set.
+
 ## 1.15.1
 
 ### Changed

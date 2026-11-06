@@ -1,6 +1,9 @@
 -- Auto-test hors jeu de la logique pure : lua selfcheck.lua
 -- CreateFrame est absent hors client, la partie UI est ignorée par le module.
 local NS = {}
+-- Valeur secrète simulée, captée par le module au chargement.
+local SECRET = {}
+issecretvalue = function(v) return v == SECRET end
 for _, code in ipairs({ "enUS", "frFR", "deDE", "esES", "esMX", "itIT", "ptBR", "ruRU", "koKR", "zhCN", "zhTW" }) do
 	assert(loadfile("Locale/" .. code .. ".lua"))("ForeverMeter", NS)
 end
@@ -56,6 +59,12 @@ local recap = FM.RecapLines({
 assert(#recap == 2 and recap[1].left == "-2.5s  Sort1" and recap[1].right == "-500  2.0k", recap[1].left .. " | " .. recap[1].right)
 assert(recap[2].left == "0.0s  Frappe (Ogre)" and recap[2].right == "-1.5k  0")
 assert(#FM.RecapLines(nil) == 0 and #FM.RecapLines({}) == 0)
+-- Nom de créature secret : pas de comparaison (elle lèverait en jeu), le nom est concaténé.
+local secretConcat = getmetatable(SECRET)
+setmetatable(SECRET, { __concat = function() return "secret" end })
+assert(FM.RecapLines({ { spellName = "Frappe", sourceName = SECRET, amount = 1, timestamp = 1 } })[1].left:find("secret", 1, true))
+assert(FM.RecapLines({ { spellName = "Frappe", sourceName = SECRET, amount = 1, timestamp = 1 } }, nil, nil, true)[1].left == "0.0s  Frappe")
+setmetatable(SECRET, secretConcat)
 local many = {}
 for i = 1, 10 do many[i] = { spellName = "S" .. i, amount = i, timestamp = i } end
 assert(#FM.RecapLines(many) == FM.RECAP_LINES and FM.RecapLines(many)[1].left == "-5.0s  S5")
@@ -126,4 +135,39 @@ assert(k == 1 and side == "BOTTOM", "parente d abord")
 local cmp = FM.CompareSpells({ { spellID = 1, totalAmount = 100 }, { spellID = 2, totalAmount = 50 } }, { { spellID = 2, totalAmount = 300 }, { spellID = 3, totalAmount = 10 } })
 assert(#cmp == 3 and cmp[1].spellID == 2 and cmp[1].a == 50 and cmp[1].b == 300 and cmp[2].spellID == 1 and cmp[2].b == nil and cmp[3].a == nil)
 assert(FM.FormatCompare(1200, 600) == "1.2k | 600 (+100%)" and FM.FormatCompare(50, 300) == "50 | 300 (-83%)" and FM.FormatCompare(nil, 10) == "- | 10" and FM.FormatCompare(5, 0) == "5 | 0")
+assert(FM.CompareSpells({ { spellID = 1, totalAmount = 1, isAvoidable = true, isDeadly = false } }, {})[1].isAvoidable == true, "drapeaux du sort recopiés")
+
+-- Bornes partagées : entier quand le pas est entier
+assert(FM.Clamp("rows", 7.9) == 7 and FM.Clamp("rows", 99) == 40 and FM.Clamp("scale", 1.23) == 1.23 and FM.Clamp("windows", 0) == 1 and FM.Clamp("width", 1000) == 600)
+
+-- Filtre des ennemis : ordre gardé, classification secrète gardée faute de pouvoir la comparer
+local enemies = { { name = "a", classification = "normal" }, { name = "b", classification = "worldboss" }, { name = "c", classification = "elite" }, { name = "d", classification = SECRET }, { name = "e", classification = "rareelite" } }
+local function Names(list) local t = {} for i, s in ipairs(list) do t[i] = s.name end return table.concat(t) end
+assert(FM.FilterSources(enemies, nil) == enemies and Names(FM.FilterSources(enemies, "boss")) == "bd" and Names(FM.FilterSources(enemies, "elite")) == "bcde")
+
+-- Import de réglages : copie propre si tout est valide, sinon nil et la clé fautive
+local good = { scale = 1.2, warnSound = false, locale = "enUS", columns = { total = false }, point = { "CENTER", nil, "CENTER", 10, -20 },
+	windows = { { mode = "damage", view = "current", barColor = { r = 0.1, g = 0.2, b = 0.3 }, filter = "boss" }, { mode = "threat", view = 12, rows = 5, anchor = { to = 1, side = "BOTTOM" } } } }
+local clean = assert(FM.ValidateSettings(good))
+assert(clean ~= good and clean.windows[2].anchor.to == 1 and clean.windows[1].barColor.b == 0.3 and clean.point[4] == 10 and clean.columns.total == false)
+local function Bad(t, key)
+	local out, bad = FM.ValidateSettings(t)
+	assert(out == nil and bad == key, tostring(bad) .. " au lieu de " .. key)
+end
+Bad({ windows = { { mode = "damage" } }, bogus = 1 }, "bogus")
+Bad({ windows = { { mode = "damage" } }, scale = "1" }, "scale")
+Bad({ windows = { { mode = "damage" } }, warnPct = 999 }, "warnPct")
+Bad({ windows = { { mode = "damage" } }, refresh = 0 / 0 }, "refresh")
+Bad({ windows = { { mode = "damage" } }, locale = "xxXX" }, "locale")
+Bad({ windows = { { mode = "damage" } }, point = { "CENTER", "UIParent", "CENTER", 0, 0 } }, "point")
+Bad({ windows = {} }, "windows")
+Bad({ windows = { { mode = "damage" }, { mode = "damage" }, { mode = "damage" }, { mode = "damage" }, { mode = "damage" } } }, "windows")
+Bad({ windows = { [1] = { mode = "damage" }, [3] = { mode = "damage" } } }, "windows")
+Bad({ windows = { { mode = "bogus" } } }, "windows.1.mode")
+Bad({ windows = { { view = "current" } } }, "windows.1")
+Bad({ windows = { { mode = "damage", anchor = { to = 1, side = "BOTTOM" } } } }, "windows.1.anchor")
+Bad({ windows = { { mode = "damage" }, { mode = "damage", anchor = { to = 1, side = "BOTTOM", x = 1 } } } }, "windows.2.anchor")
+Bad({ windows = { { mode = "damage", barColor = { r = 2, g = 0, b = 0 } } } }, "windows.1.barColor")
+Bad({ windows = { { mode = "damage", filter = "rare" } } }, "windows.1.filter")
+Bad("MIR1", "?")
 print("selfcheck OK")

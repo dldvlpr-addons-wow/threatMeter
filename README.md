@@ -6,7 +6,13 @@ Pure Lua, no libraries required: one main file, a settings mirror and 11 locale 
 > **First install: restart the game once.** The game only loads new texture and font files at startup,
 > so `/reload` is not enough the first time. After an update, `/reload` is usually enough; restart if something looks missing.
 
-## What's new in 1.15.1
+## What's new in 1.16.0
+- **Avoidable and deadly spells** marked in the damage taken breakdown and tooltip.
+- **Death recap to chat**: shift-click a death, or `/fm report death [N]`.
+- **Settings export and import**: `/fm export`, `/fm import`, or the options panel.
+- **Boss filter** for enemy damage taken, **bar colour** per window, windows, rows and width in the options panel.
+
+### 1.15.1
 - **Threat warning with MuscaUI**: ForeverMeter no longer plays its sound when MuscaUI already warns.
 
 ### 1.15.0
@@ -51,13 +57,17 @@ Install from CurseForge or Wago, or copy the folder into
   The breakdown is a separate panel above the meter windows; drag its title to move it, its position is kept.
 - Shift-click a second bar while the breakdown is open: spell-by-spell comparison of both sources ("12.3k | 9.8k (+26%)"), out of combat only.
 - Specialization icon when the client provides one, class icon otherwise.
-- Damage taken: the per-spell breakdown shows the creature that cast it.
-- Deaths: time of death on the bar, last hits taken (client death recap) on hover.
+- Damage taken: the per-spell breakdown shows the creature that cast it, and marks avoidable and deadly spells.
+- Deaths: time of death on the bar, last hits taken (client death recap) on hover. Shift-click: send that recap to the group chat.
+- Enemy damage taken: window menu filter, all enemies, elites and bosses, or bosses only.
+- Bar colour per window: window menu, class colour (default) or a colour from the colour picker.
 - Refresh every 0.2 s by default, on top of meter events (`/fm refresh 0.1` for snappier updates).
 - Button in the addon compartment (next to the minimap) to show or hide the windows.
 - Options panel (Options → AddOns → ForeverMeter, `/fm options`, **Options** in a window menu, or the gear in the title bar):
   texture, font, font size, language, scale, refresh, threat warning, sound, pets, lock, auto show, reset,
-  bar text columns (total, per second, percent), bar height, background opacity.
+  bar text columns (total, per second, percent), bar height, background opacity, number of windows,
+  shared rows and width, settings export and import.
+- Settings export and import (`/fm export`, `/fm import`): copy your settings as text to another PC or player.
 - Bar textures (`blizzard`, `flat`, `gradient`, `glass`, `striped`, `fade`) and fonts (six bundled OFL fonts plus
   the game fonts). Textures and fonts from LibSharedMedia are listed too when another addon loads it.
 - Animated bar fill.
@@ -74,9 +84,10 @@ Install from CurseForge or Wago, or copy the folder into
 ## Commands
 ```
 /fm mode <damage|heal|absorbs|taken|enemytaken|avoidable|interrupts|dispels|deaths|threat>
-/fm report [N] | reset | lock | unlock | toggle | options
+/fm report [N] | report death [N] | reset | lock | unlock | toggle | options
 /fm texture [name] | font [name] [size] | font default
 /fm windows <1-4> | refresh <s> | scale <x> | rows <n> | width <px> | warn <%> | sound | pets | test | defaults
+/fm export | import
 /fm lang [auto|enUS|frFR|deDE|esES|esMX|itIT|ptBR|ruRU|koKR|zhCN|zhTW]
 /fm debug   (raw C_DamageMeter values, to diagnose a display issue)
 ```
@@ -90,6 +101,7 @@ lua uicheck.lua
 `selfcheck.lua` tests pure logic (formatting, threat sorting, death recap, window configuration).
 `uicheck.lua` runs the UI code against a fake client (loading, settings migration, windows,
 menu, tooltip, breakdown, commands, secret values in combat, CVar settings mirror, auto show).
+The release workflow runs both before publishing a tag.
 
 WoW Forever 1.60 writes account SavedVariables but does not read them back. Settings are therefore duplicated
 (`Mirror.lua`): the table is stored in `g_addonCategoriesCollapsed` (Blizzard_AddOnList save,

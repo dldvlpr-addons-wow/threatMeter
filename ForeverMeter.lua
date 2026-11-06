@@ -232,7 +232,7 @@ function FM.CompareSpells(spellsA, spellsB)
 		for _, s in ipairs(spells) do
 			local row = byID[s.spellID]
 			if not row then
-				row = { spellID = s.spellID, creatureName = s.creatureName }
+				row = { spellID = s.spellID, creatureName = s.creatureName, isAvoidable = s.isAvoidable, isDeadly = s.isDeadly }
 				byID[s.spellID] = row
 				rows[#rows + 1] = row
 			end
@@ -284,7 +284,7 @@ end
 -- Derniers événements d'un recap de mort (C_DeathRecap.GetRecapEvents), affichés du plus ancien au plus récent.
 -- Blizzard les rend du coup mortel au plus ancien : liste remise dans l'ordre d'après les timestamps.
 -- Chaque ligne : { left = "-2.3s  Sort (source)", right = "-1.2k  2.0k" }. `spellName(id)` résout un ID de sort.
-function FM.RecapLines(events, spellName, maxLines)
+function FM.RecapLines(events, spellName, maxLines, hideSecretNames)
 	local lines = {}
 	if not events or #events == 0 then return lines end
 	if (events[1].timestamp or 0) > (events[#events].timestamp or 0) then
@@ -297,7 +297,14 @@ function FM.RecapLines(events, spellName, maxLines)
 	for i = math.max(1, #events - maxLines + 1), #events do
 		local e = events[i]
 		local name = e.spellName or (e.spellId and spellName and spellName(e.spellId)) or e.environmentalType or "?"
-		if e.sourceName and e.sourceName ~= "" then name = name .. " (" .. e.sourceName .. ")" end
+		-- Nom de créature secret en instance : pas comparable, mais concaténable (ligne secrète, affichée en local).
+		-- hideSecretNames (report en chat) : le nom secret est omis, la ligne reste envoyable.
+		local who = e.sourceName
+		if issecretvalue(who) then
+			if not hideSecretNames then name = name .. " (" .. who .. ")" end
+		elseif who and who ~= "" then
+			name = name .. " (" .. who .. ")"
+		end
 		local right = "-" .. FM.FormatValue(e.amount or 0)
 		if e.currentHP then right = right .. "  " .. FM.FormatValue(e.currentHP) end
 		lines[#lines + 1] = { left = string.format("%.1fs  %s", (e.timestamp or last) - last, name), right = right }
@@ -381,6 +388,147 @@ function FM.RemoveWindowConfig(list, k)
 			if a.to == k then c.anchor = nil elseif a.to > k then a.to = a.to - 1 end
 		end
 	end
+end
+
+-- Bornes des réglages numériques, partagées par les commandes /fm, les curseurs du panneau et l'import.
+FM.BOUNDS = {
+	scale = { min = 0.5, max = 2, step = 0.05 },
+	rows = { min = 1, max = 40, step = 1 },
+	width = { min = 150, max = 600, step = 10 },
+	refresh = { min = 0.05, max = 2, step = 0.05 },
+	warnPct = { min = 1, max = 130, step = 1 },
+	fontSize = { min = 6, max = 24, step = 1 },
+	rowHeight = { min = 10, max = 40, step = 1 },
+	bgAlpha = { min = 0, max = 1, step = 0.05 },
+	windows = { min = 1, max = FM.MAX_WINDOWS, step = 1 },
+}
+
+-- Valeur ramenée dans ses bornes ; entière quand le pas est entier.
+function FM.Clamp(key, v)
+	local b = FM.BOUNDS[key]
+	if b.step >= 1 then v = math.floor(v) end
+	return math.max(b.min, math.min(b.max, v))
+end
+
+-- Filtre des sources ennemies sur `classification` (jamais secrète d'après la doc Blizzard ;
+-- une valeur secrète garde la ligne, faute de pouvoir la comparer). filter nil = tout.
+local FILTER_CLASSIFICATIONS = {
+	elite = { worldboss = true, elite = true, rareelite = true },
+	boss = { worldboss = true },
+}
+function FM.FilterSources(list, filter)
+	local keep = filter and FILTER_CLASSIFICATIONS[filter]
+	if not keep then return list end
+	local out = {}
+	for _, s in ipairs(list) do
+		local c = s.classification
+		if issecretvalue(c) or keep[c] then out[#out + 1] = s end
+	end
+	return out
+end
+
+-- Validation d'un import de réglages (chaîne collée par n'importe qui) : copie propre, ou nil et la clé fautive.
+-- Toute clé inconnue, tout type ou toute valeur hors bornes rejette l'ensemble.
+local POINTS = { TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true, RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true }
+local SIDES = { BOTTOM = true, RIGHT = true, TOP = true, LEFT = true }
+
+local function Bounded(key)
+	return function(v)
+		local b = FM.BOUNDS[key]
+		return type(v) == "number" and v >= b.min and v <= b.max, v
+	end
+end
+local function Boolean(v) return type(v) == "boolean", v end
+local function Name(v) return type(v) == "string" and #v <= 100, v end
+local function Finite(v) return type(v) == "number" and v == v and math.abs(v) < 100000 end
+
+local function ValidPoint(p)
+	if type(p) ~= "table" or not POINTS[p[1]] or p[2] ~= nil or not POINTS[p[3]] or not Finite(p[4]) or not Finite(p[5]) then return false end
+	for k in pairs(p) do if k ~= 1 and k ~= 3 and k ~= 4 and k ~= 5 then return false end end
+	return true, { p[1], nil, p[3], p[4], p[5] }
+end
+
+local function ValidColumns(c)
+	if type(c) ~= "table" then return false end
+	local out = {}
+	for k, v in pairs(c) do
+		if not DEFAULTS.columns[k] or type(v) ~= "boolean" then return false end
+		out[k] = v
+	end
+	return true, out
+end
+
+local function ValidColor(c)
+	if type(c) ~= "table" then return false end
+	for k, v in pairs(c) do
+		if (k ~= "r" and k ~= "g" and k ~= "b") or type(v) ~= "number" or not (v >= 0 and v <= 1) then return false end
+	end
+	if not (c.r and c.g and c.b) then return false end
+	return true, { r = c.r, g = c.g, b = c.b }
+end
+
+local WINDOW_FIELDS = {
+	mode = function(v) return type(v) == "string" and FM.MODE_INFO[v] ~= nil, v end,
+	view = function(v) return v == "current" or v == "overall" or (type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge), v end, -- un sessionID repasse à current (InitDb)
+	rows = Bounded("rows"),
+	width = Bounded("width"),
+	bigNumber = Boolean, locked = Boolean, noHeader = Boolean, onlyMe = Boolean,
+	columns = ValidColumns,
+	point = ValidPoint,
+	barColor = ValidColor,
+	filter = function(v) return FILTER_CLASSIFICATIONS[v] ~= nil, v end,
+}
+
+local SETTINGS_FIELDS = {
+	scale = Bounded("scale"), rows = Bounded("rows"), width = Bounded("width"), refresh = Bounded("refresh"),
+	warnPct = Bounded("warnPct"), fontSize = Bounded("fontSize"), rowHeight = Bounded("rowHeight"), bgAlpha = Bounded("bgAlpha"),
+	warnSound = Boolean, showPets = Boolean, autoHide = Boolean, autoReset = Boolean,
+	columns = ValidColumns,
+	locale = function(v) return type(v) == "string" and FM.FindLocale(v) == v, v end,
+	barTexture = Name, barFont = Name,
+	point = ValidPoint, detailPoint = ValidPoint,
+}
+
+-- Copie des champs de `t` validés par `fields`, `skip` mis à part ; nil et la clé fautive au premier écart.
+local function CopyFields(t, fields, skip)
+	local out = {}
+	for k, v in pairs(t) do
+		if k ~= skip then
+			local check = type(k) == "string" and fields[k]
+			if not check then return nil, tostring(k) end
+			local ok, clean = check(v)
+			if not ok then return nil, k end
+			out[k] = clean
+		end
+	end
+	return out
+end
+
+function FM.ValidateSettings(t)
+	if type(t) ~= "table" then return nil, "?" end
+	local list = t.windows
+	local out, bad = CopyFields(t, SETTINGS_FIELDS, "windows")
+	if not out then return nil, bad end
+	if type(list) ~= "table" or #list < 1 or #list > FM.MAX_WINDOWS then return nil, "windows" end
+	local count = 0
+	for _ in pairs(list) do count = count + 1 end
+	if count ~= #list then return nil, "windows" end
+	out.windows = {}
+	for i, c in ipairs(list) do
+		if type(c) ~= "table" or c.mode == nil then return nil, "windows." .. i end
+		local anchor = c.anchor
+		local w, wrong = CopyFields(c, WINDOW_FIELDS, "anchor")
+		if not w then return nil, "windows." .. i .. "." .. wrong end
+		if anchor ~= nil then
+			local to = type(anchor) == "table" and anchor.to
+			local valid = type(to) == "number" and to == math.floor(to) and to >= 1 and to <= #list and to ~= i and SIDES[anchor.side]
+			for k in pairs(type(anchor) == "table" and anchor or {}) do if k ~= "to" and k ~= "side" then valid = false end end
+			if not valid then return nil, "windows." .. i .. ".anchor" end
+			w.anchor = { to = to, side = anchor.side }
+		end
+		out.windows[i] = w
+	end
+	return out
 end
 
 ------------------------------------------------------------------------
@@ -562,6 +710,13 @@ local function Sources(session)
 	return list
 end
 
+-- Sources affichées par une fenêtre : en dégâts subis par les ennemis, filtre boss / élites (cfg.filter).
+local function VisibleSources(win, session)
+	local list = Sources(session)
+	if win.cfg.mode ~= "enemytaken" then return list end
+	return FM.FilterSources(list, win.cfg.filter)
+end
+
 -- Sorts d'une source, triés quand lisibles. Renvoie la liste et le drapeau secret.
 local function SortedSpells(source)
 	local spells = source and source.combatSpells or {}
@@ -679,6 +834,13 @@ local function ClassColor(class)
 	local c = not issecretvalue(class) and class and RAID_CLASS_COLORS[class]
 	if c then return c.r, c.g, c.b end
 	return 0.6, 0.6, 0.6
+end
+
+-- Couleur choisie pour la fenêtre (cfg.barColor), sinon couleur de classe.
+local function BarColor(win, class)
+	local c = win.cfg.barColor
+	if c then return c.r, c.g, c.b end
+	return ClassColor(class)
 end
 
 local function MakeWindow(name, w, h)
@@ -889,13 +1051,17 @@ local function SpellIcon(spellID)
 	return tex or "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 
--- Nom d'un sort ; en dégâts subis, la créature qui l'a lancé (hors combat : le nom est secret en combat).
-local function SpellLabel(win, s)
+-- Nom d'un sort ; en dégâts subis, la créature qui l'a lancé (hors combat : le nom est secret en combat),
+-- puis les marques « évitable » et « mortel » (booléens jamais secrets d'après la doc, testés quand même).
+-- `plain` : sans code couleur, pour le chat (SendChatMessage refuse les |c).
+local function Flag(v) return not issecretvalue(v) and v == true end
+local function SpellLabel(win, s, plain)
 	local name = GetSpellNameCompat(s.spellID) or ("#" .. tostring(s.spellID))
+	if win.cfg.mode ~= "taken" and win.cfg.mode ~= "avoidable" then return name end
 	local creature = s.creatureName
-	if (win.cfg.mode == "taken" or win.cfg.mode == "avoidable") and creature and not issecretvalue(creature) and creature ~= "" then
-		return name .. " · " .. creature
-	end
+	if creature and not issecretvalue(creature) and creature ~= "" then name = name .. " · " .. creature end
+	if Flag(s.isAvoidable) then name = name .. (plain and " (" .. L.SPELL_AVOIDABLE .. ")" or " |cffffa500(" .. L.SPELL_AVOIDABLE .. ")|r") end
+	if Flag(s.isDeadly) then name = name .. (plain and " (" .. L.SPELL_DEADLY .. ")" or " |cffff3333(" .. L.SPELL_DEADLY .. ")|r") end
 	return name
 end
 
@@ -983,7 +1149,8 @@ local function TestSession()
 	for i, class in ipairs(TEST_CLASSES) do
 		local amount = 100000 - (i - 1) * 9000
 		local name = LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[class] or class
-		list[i] = { name = name, classFilename = class, totalAmount = amount, amountPerSecond = amount / 60 }
+		-- worldboss : les fausses lignes passent tous les filtres d'ennemis.
+		list[i] = { name = name, classFilename = class, classification = "worldboss", totalAmount = amount, amountPerSecond = amount / 60 }
 		total = total + amount
 	end
 	return { combatSources = list, maxAmount = list[1].totalAmount, totalAmount = total }
@@ -1001,10 +1168,13 @@ local function RenderMeter(win)
 		label = SessionLabel(win, session)
 	end
 	SetTitle(win.title, (IsDps(win) and L.MENU_DPS or FM.MODE_INFO[mode].label) .. " · " .. label)
-	local list = Sources(session)
+	local list = VisibleSources(win, session)
 	local maxAmount = session and session.maxAmount or 1
 	local sessionTotal = session and session.totalAmount
 	local secret = list[1] and issecretvalue(list[1].totalAmount)
+	-- Lignes filtrées : la plus grande visible remplit la barre (liste déjà triée par l'API ou par Sources).
+	-- En combat, list[1].totalAmount est secret : SetMinMaxValues l'accepte, aucune comparaison ici.
+	if list[1] and list ~= (session and session.combatSources) then maxAmount = list[1].totalAmount end
 	if secret then win.scrollOffset = 0 end
 	local maxOffset = math.max(0, #list - win.rows)
 	if win.scrollOffset > maxOffset then win.scrollOffset = maxOffset end
@@ -1026,7 +1196,7 @@ local function RenderMeter(win)
 		if src then
 			bar:SetMinMaxValues(0, maxAmount)
 			bar:SetValue(src.totalAmount, SMOOTH_FILL)
-			bar:SetStatusBarColor(ClassColor(src.classFilename))
+			bar:SetStatusBarColor(BarColor(win, src.classFilename))
 			SetSourceIcon(bar, src)
 			bar.left:SetText(string.format("%d. %s", index, src.name))
 			local deathTime = mode == "deaths" and src.deathTimeSeconds
@@ -1089,7 +1259,7 @@ local function RenderThreat(win)
 		if row then
 			bar:SetMinMaxValues(0, 100)
 			bar:SetValue(row.pct, SMOOTH_FILL)
-			if row.tanking then bar:SetStatusBarColor(0.9, 0.2, 0.2) else bar:SetStatusBarColor(ClassColor(row.class)) end
+			if row.tanking then bar:SetStatusBarColor(0.9, 0.2, 0.2) else bar:SetStatusBarColor(BarColor(win, row.class)) end
 			SetClassIcon(bar, row.class)
 			bar.left:SetText((row.isPlayer and "> " or "") .. row.name)
 			bar.right:SetText(row.status and StatusLabel(row) or string.format("%s  %s/s  %d%%", FM.FormatValue(row.value), FM.FormatValue(row.tps), row.pct))
@@ -1116,17 +1286,24 @@ end
 ------------------------------------------------------------------------
 -- Tooltip d'une barre : top sorts de la source, ou recap de mort en mode Morts
 ------------------------------------------------------------------------
-local function AddRecapLines(recapID)
+-- Événements lisibles d'un recap de mort, ou nil et le message à afficher (tooltip et report en chat).
+local function RecapEvents(recapID)
 	local ok, has = pcall(function()
 		return DeathRecap and recapID and not issecretvalue(recapID) and recapID ~= -1 and DeathRecap.HasRecapEvents(recapID)
 	end)
 	local events = ok and has and DeathRecap.GetRecapEvents(recapID) or nil
-	if not events or #events == 0 then
-		GameTooltip:AddLine(L.TIP_NO_RECAP, 0.7, 0.7, 0.7)
-		return
+	if not events or #events == 0 then return nil, L.TIP_NO_RECAP end
+	-- RecapLines compare et formate ces champs : un seul secret et le recap n'est pas lisible.
+	for _, e in ipairs(events) do
+		if issecretvalue(e.amount) or issecretvalue(e.currentHP) or issecretvalue(e.timestamp) then return nil, L.DETAIL_OUT_OF_COMBAT end
 	end
-	if issecretvalue(events[#events].amount) then
-		GameTooltip:AddLine(L.DETAIL_OUT_OF_COMBAT, 0.7, 0.7, 0.7)
+	return events
+end
+
+local function AddRecapLines(recapID)
+	local events, message = RecapEvents(recapID)
+	if not events then
+		GameTooltip:AddLine(message, 0.7, 0.7, 0.7)
 		return
 	end
 	for _, line in ipairs(FM.RecapLines(events, GetSpellNameCompat)) do
@@ -1141,6 +1318,7 @@ local function ShowTooltip(bar)
 	GameTooltip:SetText(src.name, ClassColor(src.classFilename))
 	if win.cfg.mode == "deaths" then
 		AddRecapLines(src.deathRecapID)
+		GameTooltip:AddLine(L.TIP_REPORT_DEATH, 0.5, 0.5, 0.5)
 	elseif bar.sourceGuid then
 		local source = ReadSource(win, bar.sourceGuid)
 		local spells, secret = SortedSpells(source)
@@ -1158,9 +1336,16 @@ local function ShowTooltip(bar)
 	GameTooltip:Show()
 end
 
+local ReportDeath -- défini après ChatSend
+
 -- Clic sur une barre : détail par sort, dans la fenêtre de détail unique.
+-- Mode Morts : Maj+clic envoie le recap de cette mort dans le chat.
 local function BarClick(bar)
 	local win = bar.win
+	if win.cfg.mode == "deaths" and IsShiftKeyDown() and bar.source then
+		ReportDeath(bar.source)
+		return
+	end
 	if not bar.sourceGuid then
 		if win.cfg.mode ~= "threat" then Print(L.DETAIL_OUT_OF_COMBAT) end
 		return
@@ -1247,7 +1432,7 @@ end
 local function ReportLines(win, count)
 	if win.cfg.mode == "threat" then return nil, L.REPORT_NOTHING_THREAT end
 	local session = ReadSession(win)
-	local list = Sources(session)
+	local list = VisibleSources(win, session)
 	if not list[1] then return nil, L.REPORT_NOTHING end
 	if issecretvalue(list[1].totalAmount) then return nil, L.REPORT_OUT_OF_COMBAT end
 	local lines = { string.format(L.REPORT_HEADER, FM.MODE_INFO[win.cfg.mode].label, SessionLabel(win, session)) }
@@ -1258,20 +1443,10 @@ local function ReportLines(win, count)
 	return lines
 end
 
--- Copie en texte (menu de la fenêtre) : toutes les lignes du report, sélectionnées, pour un Ctrl+C vers Discord.
--- Une ligne secrète (nom de créature en instance) ne peut pas aller dans la zone de saisie : elle est omise.
+-- Fenêtre de texte unique (copie, export, import), texte sélectionné pour un Ctrl+C.
+-- `import` : bouton Importer, qui reçoit le texte de la zone de saisie.
 local copyFrame
-local function CopyWindow(win)
-	local lines, err = ReportLines(win, math.huge)
-	if not lines then Print(err); return end
-	local plain, sources = {}, 0
-	for i, line in ipairs(lines) do
-		if not issecretvalue(line) then
-			plain[#plain + 1] = line
-			if i > 1 then sources = sources + 1 end
-		end
-	end
-	if sources == 0 then Print(L.REPORT_NOTHING); return end
+local function ShowTextWindow(text, hint, import)
 	if not copyFrame then
 		copyFrame = MakeWindow("ForeverMeterCopyFrame", 340, 220)
 		copyFrame:SetFrameStrata("DIALOG")
@@ -1293,14 +1468,58 @@ local function CopyWindow(win)
 		box:SetScript("OnEscapePressed", function() copyFrame:Hide() end)
 		scroll:SetScrollChild(box)
 		copyFrame.box = box
+		copyFrame.scroll = scroll
+		local button = CreateFrame("Button", nil, copyFrame, "UIPanelButtonTemplate")
+		button:SetSize(100, 22)
+		button:SetPoint("BOTTOMRIGHT", -8, 6)
+		button:SetScript("OnClick", function() if copyFrame.import then copyFrame.import(copyFrame.box:GetText()) end end)
+		copyFrame.importButton = button
 		if UISpecialFrames then table.insert(UISpecialFrames, "ForeverMeterCopyFrame") end
 	end
-	copyFrame.title:SetText(L.COPY_HINT)
+	copyFrame.title:SetText(hint)
+	copyFrame.import = import
+	copyFrame.scroll:SetPoint("BOTTOMRIGHT", -28, import and 32 or 6)
+	copyFrame.importButton:SetText(L.OPT_IMPORT)
+	copyFrame.importButton:SetShown(import ~= nil)
 	copyFrame:Show()
-	copyFrame.box:SetText(table.concat(plain, "\n"))
+	copyFrame.box:SetText(text)
 	copyFrame.box:SetFocus()
 	copyFrame.box:HighlightText()
 end
+
+-- Copie en texte (menu de la fenêtre) : toutes les lignes du report, pour un Ctrl+C vers Discord.
+-- Une ligne secrète (nom de créature en instance) ne peut pas aller dans la zone de saisie : elle est omise.
+local function CopyWindow(win)
+	local lines, err = ReportLines(win, math.huge)
+	if not lines then Print(err); return end
+	local plain, sources = {}, 0
+	for i, line in ipairs(lines) do
+		if not issecretvalue(line) then
+			plain[#plain + 1] = line
+			if i > 1 then sources = sources + 1 end
+		end
+	end
+	if sources == 0 then Print(L.REPORT_NOTHING); return end
+	ShowTextWindow(table.concat(plain, "\n"), L.COPY_HINT)
+end
+
+-- Couleur unique des barres de la fenêtre, choisie au sélecteur du client ; Annuler remet la précédente.
+local function PickBarColor(win)
+	local previous = win.cfg.barColor
+	local r, g, b
+	if previous then r, g, b = previous.r, previous.g, previous.b else r, g, b = ClassColor(select(2, UnitClass("player"))) end
+	ColorPickerFrame:SetupColorPickerAndShow({
+		r = r, g = g, b = b, hasOpacity = false,
+		swatchFunc = function()
+			local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+			win.cfg.barColor = { r = nr, g = ng, b = nb }
+			Refresh()
+		end,
+		cancelFunc = function() win.cfg.barColor = previous; Refresh() end,
+	})
+end
+
+local FILTER_CHOICES = { { label = "FILTER_ALL" }, { key = "elite", label = "FILTER_ELITE" }, { key = "boss", label = "FILTER_BOSS" } }
 
 local WINDOW_FLAGS = {
 	{ key = "onlyMe", label = "MENU_ONLY_ME" },
@@ -1356,6 +1575,22 @@ local function MenuEntries(win)
 				win.cfg.columns[o.key] = not win.cfg.columns[o.key]
 				Refresh()
 			end }
+	end
+	if win.cfg.mode == "enemytaken" then
+		entries[#entries + 1] = { divider = true }
+		entries[#entries + 1] = { title = L.MENU_FILTER }
+		for _, o in ipairs(FILTER_CHOICES) do
+			entries[#entries + 1] = { text = L[o.label], checked = function() return win.cfg.filter == o.key end,
+				func = function() win.cfg.filter = o.key; win.scrollOffset = 0; Refresh() end }
+		end
+	end
+	entries[#entries + 1] = { divider = true }
+	entries[#entries + 1] = { title = L.MENU_BAR_COLOR }
+	entries[#entries + 1] = { text = L.MENU_CLASS_COLOR, checked = function() return win.cfg.barColor == nil end,
+		func = function() win.cfg.barColor = nil; Refresh() end }
+	if ColorPickerFrame and ColorPickerFrame.SetupColorPickerAndShow then
+		entries[#entries + 1] = { text = L.MENU_PICK_COLOR, checked = function() return win.cfg.barColor ~= nil end,
+			func = function() PickBarColor(win) end }
 	end
 	entries[#entries + 1] = { divider = true }
 	entries[#entries + 1] = { text = L.MENU_COPY, func = function() CopyWindow(win) end }
@@ -1503,8 +1738,7 @@ local function NewWindow(i)
 	-- glissement ; seuls les événements de drag (ceux du titre) sont fiables.
 	-- Taille (largeur, hauteur en px) -> largeur et lignes de cette fenêtre.
 	local function SizeToConfig(w, h)
-		return math.max(150, math.min(600, math.floor(w + 0.5))),
-			math.max(1, math.min(40, math.floor((h - HeaderHeight(f.cfg) - 3) / (db.rowHeight + 1) + 0.5)))
+		return FM.Clamp("width", w + 0.5), FM.Clamp("rows", (h - HeaderHeight(f.cfg) - 3) / (db.rowHeight + 1) + 0.5)
 	end
 	-- Relâchement : la taille suivie pendant le glissement est arrondie à un nombre entier de lignes.
 	f.OnResized = function()
@@ -1536,10 +1770,10 @@ local function NewWindow(i)
 			local x, y = GetCursorPosition()
 			local scale = f:GetEffectiveScale()
 			local w = fromLeft and f:GetRight() - x / scale or x / scale - f:GetLeft()
-			w = math.max(150, math.min(600, w))
+			w = math.max(FM.BOUNDS.width.min, math.min(FM.BOUNDS.width.max, w))
 			-- Gros chiffre ou « ma barre seulement » : hauteur fixe, seule la largeur suit le curseur.
 			local fixed = f.cfg.bigNumber or f.cfg.onlyMe
-			local h = fixed and WindowHeight(ShownRows(f), f.cfg) or math.max(WindowHeight(1, f.cfg), math.min(WindowHeight(40, f.cfg), f:GetTop() - y / scale))
+			local h = fixed and WindowHeight(ShownRows(f), f.cfg) or math.max(WindowHeight(1, f.cfg), math.min(WindowHeight(FM.BOUNDS.rows.max, f.cfg), f:GetTop() - y / scale))
 			local rows
 			f.cfg.width, rows = SizeToConfig(w, h)
 			if not fixed then f.cfg.rows = rows end
@@ -1790,6 +2024,18 @@ local function ChatSend(msg)
 	end
 end
 
+ReportDeath = function(src)
+	local events, message = RecapEvents(src.deathRecapID)
+	if not events then Print(message); return end
+	-- Lignes du chat sans les noms de créature secrets. Un message encore secret (nom du mort, sort) : le chat
+	-- le refuserait et le groupe recevrait un récap tronqué, tout reste donc en local.
+	local messages = { string.format(L.REPORT_DEATH_HEADER, src.name) }
+	for _, line in ipairs(FM.RecapLines(events, GetSpellNameCompat, nil, true)) do messages[#messages + 1] = line.left .. "  " .. line.right end
+	local send = ChatSend
+	for _, msg in ipairs(messages) do if issecretvalue(msg) then send = Print end end
+	for _, msg in ipairs(messages) do send(msg) end
+end
+
 local function Report(win, count)
 	local lines, err = ReportLines(win, count)
 	if not lines then Print(err); return end
@@ -1814,14 +2060,14 @@ local function ReportDetail(count)
 		ChatSend(string.format(L.REPORT_DETAIL_HEADER, (win.selectedName or "?") .. " vs " .. (win.compareName or "?"), label, sessionLabel))
 		for i = 1, math.min(count, #rows) do
 			local r = rows[i]
-			ChatSend(string.format("%d. %s  %s", i, SpellLabel(win, r), FM.FormatCompare(r.a, r.b)))
+			ChatSend(string.format("%d. %s  %s", i, SpellLabel(win, r, true), FM.FormatCompare(r.a, r.b)))
 		end
 		return
 	end
 	ChatSend(string.format(L.REPORT_DETAIL_HEADER, win.selectedName or "?", label, sessionLabel))
 	for i = 1, math.min(count, #spells) do
 		local s = spells[i]
-		ChatSend(string.format("%d. %s  %s", i, SpellLabel(win, s), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), source.totalAmount, false, Columns(win))))
+		ChatSend(string.format("%d. %s  %s", i, SpellLabel(win, s, true), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), source.totalAmount, false, Columns(win))))
 	end
 end
 
@@ -1874,19 +2120,72 @@ local function ResetSettings()
 	ApplyLanguage()
 end
 
-------------------------------------------------------------------------
--- Panneau d'options : Options > AddOns > ForeverMeter, /fm options, entrée du menu des fenêtres
-------------------------------------------------------------------------
-local optionsPanel, optionsCategory
+-- Panneau d'options (construit plus bas) : relu à l'affichage et après un import.
 local refreshers = {}   -- relisent db et L à chaque affichage du panneau (réglages changés par /fm, langue)
 local refreshing = false
-local sliderCount = 0
 
 local function RefreshOptions()
 	refreshing = true
 	for _, r in ipairs(refreshers) do r() end
 	refreshing = false
 end
+
+-- Export : réglages sérialisés (format du miroir), sans le journal de diagnostic.
+local function ExportSettings()
+	local copy = {}
+	for k, v in pairs(db) do if k ~= "forbidden" then copy[k] = v end end
+	ShowTextWindow(NS.Mirror.Serialize(copy), L.COPY_HINT, nil)
+end
+
+-- Import d'une chaîne collée par n'importe qui : taille bornée, aucune exécution, tout validé avant d'appliquer.
+-- pcall : une clé numérique « nan » ferait lever l'affectation dans Deserialize.
+local function ImportSettings(text)
+	-- Trim par indices : un motif « ^%s*(.-)%s*$ » serait quadratique sur une longue chaîne d'espaces.
+	text = text or ""
+	local first = text:find("%S")
+	text = first and text:sub(first, text:match(".*()%S")) or ""
+	local ok, parsed = false, nil
+	if #text <= NS.Mirror.SLOTS * NS.Mirror.CHUNK then ok, parsed = pcall(NS.Mirror.Deserialize, text) end
+	local clean, bad = nil, "?"
+	if ok and parsed then clean, bad = FM.ValidateSettings(parsed) end
+	-- bad vient de la chaîne collée : codes « | » neutralisés et longueur bornée avant affichage.
+	if not clean then Print(string.format(L.MSG_IMPORT_INVALID, (tostring(bad or "?"):gsub("|", "||"):sub(1, 60)))); return end
+	wipe(db)
+	for k, v in pairs(clean) do db[k] = v end
+	InitDb()
+	EnsureWindows()
+	ApplyLanguage()
+	Layout()
+	Refresh()
+	-- Même effet que la case « masquer hors combat » du panneau.
+	if db.autoHide then AutoShow(UnitAffectingCombat("player")) else for i = 1, #db.windows do windows[i]:Show() end end
+	RefreshOptions()
+	NS.Mirror:Flush()
+	copyFrame:Hide()
+	Print(L.MSG_IMPORTED)
+end
+
+local function OpenImport() ShowTextWindow("", L.IMPORT_HINT, ImportSettings) end
+
+-- Nombre de fenêtres, borné ; retirées par la fin.
+local function SetWindowCount(n)
+	n = FM.Clamp("windows", n)
+	while #db.windows < n do AddWindow() end
+	while #db.windows > n do RemoveWindow(#db.windows) end
+	EnsureWindows()
+end
+
+-- Lignes ou largeur communes : les tailles propres à chaque fenêtre s'effacent.
+local function SetCommonSize(key, v)
+	db[key] = FM.Clamp(key, v)
+	for _, c in ipairs(db.windows) do c[key] = nil end
+end
+
+------------------------------------------------------------------------
+-- Panneau d'options : Options > AddOns > ForeverMeter, /fm options, entrée du menu des fenêtres
+------------------------------------------------------------------------
+local optionsPanel, optionsCategory
+local sliderCount = 0
 
 local function ApplyOption()
 	Layout()
@@ -1910,7 +2209,9 @@ local function OptionChoice(parent, key, x, y, entries, current)
 	refreshers[#refreshers + 1] = function() b:SetText(current()) end
 end
 
-local function OptionSlider(parent, key, x, y, minValue, maxValue, step, get, set)
+local function OptionSlider(parent, key, x, y, bound, get, set)
+	local b = FM.BOUNDS[bound]
+	local minValue, maxValue, step = b.min, b.max, b.step
 	sliderCount = sliderCount + 1
 	local name = "ForeverMeterOptionSlider" .. sliderCount
 	local s = CreateFrame("Slider", name, parent, "OptionsSliderTemplate")
@@ -1978,18 +2279,35 @@ do
 
 	OptionChoice(p, "OPT_TEXTURE", LEFT, -56, function() return MediaEntries("statusbar", "barTexture") end, function() return db.barTexture end)
 	OptionChoice(p, "OPT_FONT", LEFT, -106, function() return MediaEntries("font", "barFont") end, function() return db.barFont or L.OPT_DEFAULT end)
-	OptionSlider(p, "OPT_FONT_SIZE", LEFT, -160, 6, 24, 1, function() return db.fontSize or 10 end, function(v) db.fontSize = v end)
+	OptionSlider(p, "OPT_FONT_SIZE", LEFT, -160, "fontSize", function() return db.fontSize or 10 end, function(v) db.fontSize = v end)
 	OptionChoice(p, "OPT_LANG", LEFT, -226, LanguageEntries, function() return db.locale or ("auto (" .. GetLocale() .. ")") end)
 
-	OptionSlider(p, "OPT_SCALE", RIGHT, -56, 0.5, 2, 0.05, function() return db.scale end, function(v) db.scale = v end)
-	OptionSlider(p, "OPT_REFRESH", RIGHT, -116, 0.05, 2, 0.05, function() return db.refresh end, function(v) db.refresh = v end)
-	OptionSlider(p, "OPT_WARN", RIGHT, -176, 1, 130, 1, function() return db.warnPct end, function(v) db.warnPct = v end)
+	OptionSlider(p, "OPT_SCALE", RIGHT, -56, "scale", function() return db.scale end, function(v) db.scale = v end)
+	OptionSlider(p, "OPT_REFRESH", RIGHT, -116, "refresh", function() return db.refresh end, function(v) db.refresh = v end)
+	OptionSlider(p, "OPT_WARN", RIGHT, -176, "warnPct", function() return db.warnPct end, function(v) db.warnPct = v end)
 	OptionLabel(p, "OPT_COLUMNS", RIGHT, -236)
 	OptionCheck(p, "OPT_COL_TOTAL", RIGHT, -256, function() return db.columns.total end, function(v) db.columns.total = v end)
 	OptionCheck(p, "OPT_COL_PER_SECOND", RIGHT, -286, function() return db.columns.perSecond end, function(v) db.columns.perSecond = v end)
 	OptionCheck(p, "OPT_COL_PERCENT", RIGHT, -316, function() return db.columns.percent end, function(v) db.columns.percent = v end)
-	OptionSlider(p, "OPT_ROW_HEIGHT", RIGHT, -440, 10, 40, 1, function() return db.rowHeight end, function(v) db.rowHeight = v end)
-	OptionSlider(p, "OPT_BG_ALPHA", RIGHT, -500, 0, 1, 0.05, function() return db.bgAlpha end, function(v) db.bgAlpha = v end)
+	OptionSlider(p, "OPT_ROW_HEIGHT", RIGHT, -440, "rowHeight", function() return db.rowHeight end, function(v) db.rowHeight = v end)
+	OptionSlider(p, "OPT_BG_ALPHA", RIGHT, -500, "bgAlpha", function() return db.bgAlpha end, function(v) db.bgAlpha = v end)
+	-- Mêmes chemins que /fm windows, /fm rows et /fm width.
+	OptionSlider(p, "OPT_WINDOWS", RIGHT, -376, "windows", function() return #db.windows end, SetWindowCount)
+	OptionSlider(p, "OPT_ROWS", LEFT, -446, "rows", function() return db.rows end, function(v) SetCommonSize("rows", v) end)
+	OptionSlider(p, "OPT_WIDTH", LEFT, -506, "width", function() return db.width end, function(v) SetCommonSize("width", v) end)
+
+	-- Rangée de boutons du bas : le cadre des réglages (Blizzard_SettingsPanel.xml) offre environ 600 px de haut.
+	local function PanelButton(key, x, y, onClick)
+		local button = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+		button:SetSize(200, 22)
+		button:SetPoint("TOPLEFT", x, y)
+		button:SetScript("OnClick", onClick)
+		refreshers[#refreshers + 1] = function() button:SetText(L[key]) end
+	end
+	-- 200 px chacun : « Einstellungen exportieren » (deDE) déborde d'un bouton de 140. Bord droit à 636 sur ~665.
+	PanelButton("OPT_DEFAULTS", LEFT, -566, function() ResetSettings(); ApplyOption() end)
+	PanelButton("OPT_EXPORT", LEFT + 210, -566, ExportSettings)
+	PanelButton("OPT_IMPORT", LEFT + 420, -566, OpenImport)
 
 	OptionCheck(p, "OPT_SOUND", LEFT, -286, function() return db.warnSound end, function(v) db.warnSound = v end)
 	OptionCheck(p, "OPT_PETS", LEFT, -316, function() return db.showPets end, function(v) db.showPets = v end)
@@ -2001,12 +2319,6 @@ do
 		if v then AutoShow(UnitAffectingCombat("player")) else for i = 1, #db.windows do windows[i]:Show() end end
 	end)
 	OptionCheck(p, "OPT_AUTO_RESET", LEFT, -406, function() return db.autoReset end, function(v) db.autoReset = v end)
-
-	local defaults = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-	defaults:SetSize(200, 22)
-	defaults:SetPoint("TOPLEFT", LEFT, -452)
-	defaults:SetScript("OnClick", function() ResetSettings(); ApplyOption() end)
-	refreshers[#refreshers + 1] = function() defaults:SetText(L.OPT_DEFAULTS) end
 
 	optionsPanel = p
 	if Settings and Settings.RegisterCanvasLayoutCategory then
@@ -2042,21 +2354,23 @@ SlashCmdList.FOREVERMETER = function(input)
 		for i = 1, #db.windows do windows[i].cfg.locked = cmd == "lock"; windows[i].UpdateLock() end
 		Print(cmd == "lock" and L.MSG_LOCKED or L.MSG_UNLOCKED)
 	elseif cmd == "toggle" then ToggleWindows()
-	elseif cmd == "scale" and num then db.scale = math.max(0.5, math.min(2, num))
-	elseif cmd == "rows" and num then
-		db.rows = math.max(1, math.min(40, math.floor(num)))
-		for _, c in ipairs(db.windows) do c.rows = nil end
-	elseif cmd == "width" and num then
-		db.width = math.max(150, math.min(600, math.floor(num)))
-		for _, c in ipairs(db.windows) do c.width = nil end
-	elseif cmd == "refresh" and num then db.refresh = math.max(0.05, math.min(2, num)); Print(string.format(L.MSG_REFRESH, db.refresh))
+	elseif cmd == "scale" and num then db.scale = FM.Clamp("scale", num)
+	elseif cmd == "rows" and num then SetCommonSize("rows", num)
+	elseif cmd == "width" and num then SetCommonSize("width", num)
+	elseif cmd == "refresh" and num then db.refresh = FM.Clamp("refresh", num); Print(string.format(L.MSG_REFRESH, db.refresh))
 	elseif cmd == "windows" and num then
-		num = math.max(1, math.min(FM.MAX_WINDOWS, math.floor(num)))
-		while #db.windows < num do AddWindow() end
-		while #db.windows > num do RemoveWindow(#db.windows) end
-		EnsureWindows()
+		SetWindowCount(num)
 		Print(string.format(L.MSG_WINDOWS, #db.windows))
+	elseif cmd == "export" then ExportSettings(); return
+	elseif cmd == "import" then OpenImport(); return
 	elseif cmd == "mode" and FM.MODE_INFO[arg:lower()] then SelectMode(first, arg:lower())
+	elseif cmd == "report" and arg:lower():match("^death") then
+		-- /fm report death [N] : recap de la mort affichée à la ligne N (1 par défaut) de la première fenêtre Morts.
+		local win
+		for i = 1, #db.windows do if windows[i].cfg.mode == "deaths" then win = windows[i]; break end end
+		local src = win and VisibleSources(win, ReadSession(win))[tonumber(arg:match("%d+")) or 1]
+		if src then ReportDeath(src) else Print(L.REPORT_NOTHING) end
+		return
 	elseif cmd == "report" then Report(first, num or 5); return
 	elseif cmd == "debug" then
 		local ok, err = pcall(Debug, first)
@@ -2065,7 +2379,7 @@ SlashCmdList.FOREVERMETER = function(input)
 	elseif cmd == "reset" then
 		ResetData()
 		Print(L.MSG_RESET)
-	elseif cmd == "warn" and num then db.warnPct = math.max(1, math.min(130, math.floor(num))); Print(string.format(L.MSG_WARN, db.warnPct))
+	elseif cmd == "warn" and num then db.warnPct = FM.Clamp("warnPct", num); Print(string.format(L.MSG_WARN, db.warnPct))
 	elseif cmd == "sound" then db.warnSound = not db.warnSound; Print(string.format(L.MSG_SOUND, db.warnSound and L.WORD_ON or L.WORD_OFF))
 	elseif cmd == "pets" then db.showPets = not db.showPets; Print(string.format(L.MSG_PETS, db.showPets and L.WORD_SHOWN or L.WORD_HIDDEN))
 	elseif cmd == "test" then
@@ -2098,7 +2412,7 @@ SlashCmdList.FOREVERMETER = function(input)
 			return
 		end
 		if word ~= "" then db.barFont = name end
-		if size then db.fontSize = math.max(6, math.min(24, math.floor(size))) end
+		if size then db.fontSize = FM.Clamp("fontSize", size) end
 		if word:lower() == "default" and not size then db.fontSize = nil end
 		Print(string.format(L.MSG_FONT, db.barFont or "default", db.fontSize or 10))
 	elseif cmd == "lang" then

@@ -16,6 +16,7 @@ NKThreat 2.18.0 and ThreatMeter 0.7.4. Their facts are their authors' claims, no
 | 09 | [Overkill in the breakdown](09-overkill.md) | Waiting for a need | One forum post |
 | 10 | [Reset on each arena match](10-reset-arene.md) | Waiting for a need | One forum post |
 | 11 | [Threat warning variants](11-variantes-alerte-menace.md) | Waiting for a need | ThreatClassic2 #131, #127 |
+| 12-18 | [Evolutions (CI tests, avoidable spells, death recap to chat, export/import, boss filter, bar colour, size options)](12-18-evolutions.md) | Done, 13 and 16 to check in game | Code and API reading, 2026-11-06 |
 
 Tickets 08 to 11: player requests found on the Blizzard forums and ThreatClassic2 issues (2026-11-03).
 Reddit could not be read. Not possible under 12.x, so no ticket: hits, casts, min/average/max per spell

@@ -27,6 +27,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Logique pure, locales complètes et client simulé : un échec bloque la publication.
+      - name: Tests hors jeu
+        run: |
+          sudo apt-get update && sudo apt-get install -y lua5.1
+          lua5.1 selfcheck.lua
+          lua5.1 uicheck.lua
+
       - uses: BigWigsMods/packager@v2
 
       - name: Annonce Discord
