@@ -10,16 +10,20 @@ Pure Lua, no libraries required.
 
 ## Features
 - **10 modes**: damage, healing, absorbs, damage taken, enemy damage taken, avoidable damage taken, interrupts, dispels, deaths, threat.
-- **Up to 4 windows**, each with its own mode, session, size and lock. Windows snap to each other.
+- **Up to 4 windows**, each with its own mode, session, size, lock and bar colour. Windows snap to each other and can be minimized to their title bar.
 - **Sessions**: current fight, overall, or any fight kept by the game.
 - **Per-spell breakdown** on click, top 5 spells on hover, spell-by-spell comparison of two players.
-- **Death recap**: time of death and last hits taken.
+- **Death recap**: time of death and last hits taken; shift-click a death to send it to the group chat.
 - **Your own bar always shown**, with your real rank, even when you rank below the visible rows.
 - **DPS display**, and per window: bar text, my bar only, no title bar, big number (a plain DPS counter).
+- **Avoidable and deadly spells** marked in the damage taken modes.
+- **Boss filter** for enemy damage taken: all enemies, elites and bosses, or bosses only.
 - **Threat warning** (visual and sound) above an adjustable threshold.
-- **Chat report** (`/fm report 5`) and **copy as text** for Discord.
+- **Chat report** (`/fm report 5`, or a chosen channel: `/fm report 5 guild`) and **copy as text** for Discord.
+- **Themes**: `classic`, `flat`, `glass`, `compact` set the whole look in one click.
 - **Options panel**: bar textures, six bundled fonts, LibSharedMedia support, text columns, bar height, background opacity, scale.
-- Auto show (only in combat or in a group), auto reset (new instance or new group), key bindings, addon compartment button, test mode.
+- **Settings export and import** (`/fm export`, `/fm import`) to copy your setup to another PC or player.
+- Auto show (only in combat or in a group), hide outside instances, auto reset (new instance or new group), key bindings, addon compartment button, test mode.
 - **11 languages**: enUS, frFR, deDE, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW.
 
 ## Getting started

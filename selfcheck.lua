@@ -163,6 +163,10 @@ Bad({ windows = { { mode = "damage" } }, point = { "CENTER", "UIParent", "CENTER
 Bad({ windows = {} }, "windows")
 Bad({ windows = { { mode = "damage" }, { mode = "damage" }, { mode = "damage" }, { mode = "damage" }, { mode = "damage" } } }, "windows")
 Bad({ windows = { [1] = { mode = "damage" }, [3] = { mode = "damage" } } }, "windows")
+Bad({ windows = { [1] = { mode = "damage" }, [3] = { mode = "damage" }, [4] = { mode = "damage" }, x = true } }, "windows")
+Bad({ windows = { [1] = { mode = "damage" }, [2] = { mode = "damage" }, [4] = { mode = "damage" }, ["2.5"] = { mode = "damage" } } }, "windows")
+Bad({ windows = { { mode = "damage" } }, rows = 2.5 }, "rows")
+Bad({ windows = { { mode = "damage", rows = 2.5 } } }, "windows.1.rows")
 Bad({ windows = { { mode = "bogus" } } }, "windows.1.mode")
 Bad({ windows = { { view = "current" } } }, "windows.1")
 Bad({ windows = { { mode = "damage", anchor = { to = 1, side = "BOTTOM" } } } }, "windows.1.anchor")
@@ -170,4 +174,32 @@ Bad({ windows = { { mode = "damage" }, { mode = "damage", anchor = { to = 1, sid
 Bad({ windows = { { mode = "damage", barColor = { r = 2, g = 0, b = 0 } } } }, "windows.1.barColor")
 Bad({ windows = { { mode = "damage", filter = "rare" } } }, "windows.1.filter")
 Bad("MIR1", "?")
+
+-- Arguments de /fm report : nombre et canal optionnels, chuchotement avec nom obligatoire
+local function Parsed(arg) local a, b, c = FM.ParseReport(arg); return tostring(a) .. "," .. tostring(b) .. "," .. tostring(c) end
+assert(Parsed("") == "nil,nil,nil" and Parsed("8") == "8,nil,nil" and Parsed("GUILD") == "nil,GUILD,nil" and Parsed("3 instance") == "3,INSTANCE_CHAT,nil")
+assert(Parsed("3 whisper Bob") == "3,WHISPER,Bob" and Parsed("whisper") == "false,nil,nil" and Parsed("say Bob") == "false,nil,nil" and Parsed("3 yell") == "false,nil,nil")
+assert(Parsed("5guild") == "false,nil,nil" and Parsed("0") == "false,nil,nil" and Parsed("0 guild") == "false,nil,nil", "N collé au canal ou nul")
+
+-- Miroir : aller-retour, rejet des chaînes illisibles, élagage des défauts (Prune, via Write)
+local MNS = {}
+assert(loadfile("Mirror.lua"))("ForeverMeter", MNS)
+local Mirror = MNS.Mirror
+local src = { a = { 1, 2.5, "x" }, s = 'p;q=r.s#t|u%v"w\\y\nz', b = false, t = true, e = {}, [3] = { k = -0.125 } }
+local back = assert(Mirror.Deserialize(Mirror.Serialize(src)))
+assert(back.a[1] == 1 and back.a[2] == 2.5 and back.a[3] == "x" and back.s == src.s and back.b == false and back.t == true)
+assert(type(back.e) == "table" and next(back.e) == nil and back[3].k == -0.125 and back["3"] == nil, "clé numérique gardée numérique")
+assert(Mirror.Serialize(back) == Mirror.Serialize(src), "sérialisation stable")
+assert(Mirror.Deserialize("XX:a=b1") == nil and Mirror.Deserialize("MIR1:a") == nil and Mirror.Deserialize("MIR1:a=nzz") == nil)
+assert(Mirror.Deserialize("MIR1:#=b1") == nil and Mirror.Deserialize(nil) == nil and next(Mirror.Deserialize("MIR1:")) == nil)
+local cv = {}
+C_CVar = { RegisterCVar = function() end, GetCVar = function(k) return cv[k] end, SetCVar = function(k, v) cv[k] = v end }
+Mirror.IGNORE.log = true
+assert(Mirror:Write({ x = 1, y = 2, flag = false, sub = { k = 1, j = 3 }, same = { k = 1 }, log = { 1 } }, { x = 1, flag = false, sub = { k = 1 }, same = { k = 1 } }))
+local pruned = assert(Mirror:Read())
+assert(pruned.x == nil and pruned.y == 2 and pruned.flag == nil and pruned.sub.k == nil and pruned.sub.j == 3, "défauts élagués, false compris")
+assert(pruned.same == nil and pruned.log == nil, "table vide après élagage et clé ignorée absentes")
+assert(not Mirror:Write({ y = 2, sub = { j = 3 } }, {}), "texte inchangé : pas de réécriture")
+assert(not Mirror:Write({ big = string.rep("a", Mirror.SLOTS * Mirror.CHUNK) }, {}) and Mirror:Read().y == 2, "trop grand : miroir précédent gardé")
+C_CVar = nil
 print("selfcheck OK")

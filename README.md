@@ -6,7 +6,15 @@ Pure Lua, no libraries required: one main file, a settings mirror and 11 locale 
 > **First install: restart the game once.** The game only loads new texture and font files at startup,
 > so `/reload` is not enough the first time. After an update, `/reload` is usually enough; restart if something looks missing.
 
-## What's new in 1.16.0
+## What's new in 1.17.0
+- **Report channel**: `/fm report [N] guild`, `say`, `party`, `raid`, `instance` or `whisper <name>`; instance groups get the report in instance chat.
+- **Mode of any window**: `/fm mode threat 2`.
+- **New commands**: `/fm rowheight`, `/fm bgalpha`, `/fm autohide`, `/fm instanceonly`, `/fm autoreset`.
+- **Minimize a window** to its title bar (button left of the gear), and **hide outside instances** (options panel).
+- **Themes**: `classic`, `flat`, `glass`, `compact` (options panel or `/fm theme`).
+- **Threat first** in the Display menu; clicking Menu again closes it.
+
+### 1.16.0
 - **Avoidable and deadly spells** marked in the damage taken breakdown and tooltip.
 - **Death recap to chat**: shift-click a death, or `/fm report death [N]`.
 - **Settings export and import**: `/fm export`, `/fm import`, or the options panel.
@@ -47,7 +55,7 @@ Install from CurseForge or Wago, or copy the folder into
 - Size: grips in the bottom-right and bottom-left corners of each window (width and number of rows, per window).
   `/fm rows` and `/fm width` set a shared size and clear per-window sizes.
 - Your own bar: when you rank below the visible rows, it takes the last row with your real rank (windows of 2 rows or more).
-- Per window, from its menu: bar text (total, per second, percent), **My bar only**, **No title bar**, **Big number**.
+- Per window, from its menu: bar text (total, per second, percent), **My bar only**, **No title bar**, **Big number**, **Minimize**.
   Menu → Display → **DPS**: damage with the per second value only.
 - Sessions: current fight, overall, or any fight kept by the client.
 - **Menu** button (or right-click on the title): mode, session, lock, windows, copy as text. **Reset** button: clears data.
@@ -64,7 +72,7 @@ Install from CurseForge or Wago, or copy the folder into
 - Refresh every 0.2 s by default, on top of meter events (`/fm refresh 0.1` for snappier updates).
 - Button in the addon compartment (next to the minimap) to show or hide the windows.
 - Options panel (Options → AddOns → ForeverMeter, `/fm options`, **Options** in a window menu, or the gear in the title bar):
-  texture, font, font size, language, scale, refresh, threat warning, sound, pets, lock, auto show, reset,
+  theme, texture, font, font size, language, scale, refresh, threat warning, sound, pets, lock, auto show, reset,
   bar text columns (total, per second, percent), bar height, background opacity, number of windows,
   shared rows and width, settings export and import.
 - Settings export and import (`/fm export`, `/fm import`): copy your settings as text to another PC or player.
@@ -76,22 +84,24 @@ Install from CurseForge or Wago, or copy the folder into
 - Auto show: windows only in combat or in a group, hidden 10 s after a solo fight (option).
 - Auto reset: clear the data on entering an instance other than the last one, or on joining a group (option, off by default).
 - Threat: visual and sound warning above an adjustable threshold (`/fm warn 90`).
-- Chat report (`/fm report 5`): raid, party, or say in an instance; solo outside an instance, the lines are shown only to you. Right-click the breakdown title
+- Chat report (`/fm report 5`): instance group, raid, party, or say in an instance; solo outside an instance, the lines are shown only to you. Add a channel to choose it: `/fm report 5 guild`, `/fm report 5 whisper Name`. Right-click the breakdown title
   to report that player's top 5 spells.
 - 11 languages (`Locale/`): enUS, frFR, deDE, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW.
   Defaults to the client language; `/fm lang frFR` forces one, `/fm lang auto` goes back to the client language.
 
 ## Commands
 ```
-/fm mode <damage|heal|absorbs|taken|enemytaken|avoidable|interrupts|dispels|deaths|threat>
-/fm report [N] | report death [N] | reset | lock | unlock | toggle | options
-/fm texture [name] | font [name] [size] | font default
+/fm mode <threat|damage|heal|absorbs|taken|enemytaken|avoidable|interrupts|dispels|deaths> [window]
+/fm report [N] [say|guild|party|raid|instance|whisper <name>] | report death [N] [channel]
+/fm reset | lock | unlock | toggle | options
+/fm theme [name] | texture [name] | font [name] [size] | font default
 /fm windows <1-4> | refresh <s> | scale <x> | rows <n> | width <px> | warn <%> | sound | pets | test | defaults
+/fm rowheight <n> | bgalpha <0-1> | autohide | instanceonly | autoreset
 /fm export | import
 /fm lang [auto|enUS|frFR|deDE|esES|esMX|itIT|ptBR|ruRU|koKR|zhCN|zhTW]
 /fm debug   (raw C_DamageMeter values, to diagnose a display issue)
 ```
-`mode`, `report` and `debug` apply to the first window; the others are set from their own menu.
+`report` and `debug` apply to the first window, `mode` too unless a window number follows; the others are set from their own menu.
 
 ## Offline checks
 ```

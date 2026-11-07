@@ -22,6 +22,7 @@ When there is no room, it opens near the center of the screen.
   To move the window, turn the title bar back on first.
 - **Big number**: your own value in large text, without bars (threat mode: your threat percent).
   Combine it with **DPS** and **No title bar** for a plain DPS counter.
+- **Minimize**: only the title bar stays. Also the button left of the gear in the title bar. No effect without a title bar.
 - In combat, totals are abbreviated by the game (`12K`).
 
 ## Snapping

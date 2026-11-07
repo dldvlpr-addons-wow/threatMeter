@@ -71,9 +71,10 @@ UnitDetailedThreatSituation = function(u)
 	return u == "player" and testTanking, 3, 95, 95, testThreat or 1000
 end
 UnitThreatSituation = function(u) return testBoss == "secret" and SECRET or testStatus[u] end
-IsInRaid = function() return false end
-local inGroup = true
-IsInGroup = function() return inGroup end
+-- IsInRaid et IsInGroup sont capturés en locales par l'addon : bascules par variables.
+local inGroup, testRaid, testInstanceGroup = true, false, false
+IsInRaid = function() return testRaid end
+IsInGroup = function(category) if category == 2 then return inGroup and testInstanceGroup end return inGroup end
 IsInInstance = function() return false end
 testInstance = nil -- instanceID courant, nil = monde ouvert
 GetInstanceInfo = function() return "Zone", testInstance and "party" or "none", 0, "", 5, 0, false, testInstance or 0 end
@@ -93,7 +94,9 @@ end }
 
 local secretMode = false
 -- isLocalPlayer (booléen) est NeverSecret : jamais secret, même en combat.
-issecretvalue = function(v) return v == SECRET or (secretMode and type(v) ~= "boolean") end
+-- secretLine : motif d'une ligne de report rendue secrète (une ligne secrète dans un report).
+local secretLine
+issecretvalue = function(v) return v == SECRET or (secretMode and type(v) ~= "boolean") or (secretLine and type(v) == "string" and v:find(secretLine) ~= nil) or false end
 local function src(name, class, total, guid, extra)
 	local s = { name = name, classFilename = class, totalAmount = total, amountPerSecond = total / 10, sourceGUID = guid, isLocalPlayer = guid == "Player-player",
 		specIconID = 456, combatSpells = { { spellID = 1, totalAmount = total * 0.6, amountPerSecond = 3 }, { spellID = 2, totalAmount = total * 0.4, amountPerSecond = 2, creatureName = "Ogre" } }, maxAmount = total * 0.6 }
@@ -127,7 +130,7 @@ end
 assert(loadfile("Mirror.lua"))("ForeverMeter", NS)
 assert(loadfile("ForeverMeter.lua"))("ForeverMeter", NS)
 local FM = ForeverMeter
-assert(FM.MODES[5] == "enemytaken" and FM.MODES[6] == "avoidable" and FM.MODE_INFO.avoidable.type == 8 and FM.MODE_INFO.enemytaken.label == "Dégâts subis (ennemis)", "modes lus dans Enum")
+assert(FM.MODES[1] == "threat" and FM.MODES[6] == "enemytaken" and FM.MODES[7] == "avoidable" and FM.MODE_INFO.avoidable.type == 8 and FM.MODE_INFO.enemytaken.label == "Dégâts subis (ennemis)", "modes lus dans Enum")
 
 -- Chargement : trouve la frame d'événements (celle qui a ADDON_LOADED dans OnEvent) via le script OnUpdate.
 ForeverMeterDB = { mode = "heal", point = { "TOPLEFT", nil, "TOPLEFT", 5, -5 }, locked = true }
@@ -208,6 +211,9 @@ testTanking, sounds = false, 0; Tick(); Tick()
 assert(sounds == 1, "alerte jouée une seule fois : " .. sounds)
 Fire("PLAYER_TARGET_CHANGED"); Tick()
 assert(sounds == 2, "alerte rejouée sur la nouvelle cible : " .. sounds)
+-- Autre addon qui alerte déjà (FM.externalWarning) : pas de son ForeverMeter
+ForeverMeter.externalWarning = true; Fire("PLAYER_TARGET_CHANGED"); Tick()
+assert(sounds == 2, "alerte externe : son coupé"); ForeverMeter.externalWarning = nil
 testClock, testThreat, testTanking = nil, nil, true
 -- Cible boss : barres en statut seul, sans chiffres ; alerte au statut 1 ; « indisponible » si le statut est secret aussi.
 testBoss, sounds = true, 0; Fire("PLAYER_TARGET_CHANGED"); Tick()
@@ -310,6 +316,11 @@ local sent, realSend = {}, SendChatMessage
 SendChatMessage = function(msg, ch) sent[#sent + 1] = ch .. "> " .. msg end
 d.header.scripts.OnClick(d.header, "RightButton")
 assert(#sent == 3 and sent[1] == "PARTY> ForeverMeter : Moi, Dégâts, Combat actuel" and sent[2] == "PARTY> 1. Sort1  1.2k (3/s, 60.0%)", table.concat(sent, " ; "))
+-- Une ligne secrète : le chat la refuserait, tout le report reste en local plutôt que partir tronqué
+secretLine = "^2%."
+sent = {}; d.header.scripts.OnClick(d.header, "RightButton"); slash("report 5 guild")
+secretLine = nil
+assert(#sent == 0, "ligne secrète : rien envoyé au chat : " .. table.concat(sent, " ; "))
 SendChatMessage = realSend
 -- Colonnes du texte de droite : pourcentage puis total retirés ; les défauts de FormatRow restent intacts
 eventsFrame.scripts.OnUpdate(eventsFrame, 1) -- vide un redessin en attente (police)
@@ -317,6 +328,8 @@ db.columns.percent = false; eventsFrame.scripts.OnUpdate(eventsFrame, 1)
 assert(w1.bars[1].right.text == "2.0k (200/s, 66.7%)", "hors combat sans événement : pas de redessin")
 testCombat = true; ForeverMeterFrame2.cfg.mode = "threat"; eventsFrame.scripts.OnUpdate(eventsFrame, 1); testCombat = false; ForeverMeterFrame2.cfg.mode = "damage"
 assert(w1.bars[1].right.text == "2.0k (200/s, 66.7%)", "en combat sans événement : pas de redessin, même avec une fenêtre de menace visible")
+Fire("ADDON_RESTRICTION_STATE_CHANGED"); eventsFrame.scripts.OnUpdate(eventsFrame, 1)
+assert(w1.bars[1].right.text == "2.0k (200/s)", "fin de restriction : redessin")
 Tick()
 assert(d.bars[1].right.text == "1.2k (3/s)" and w1.bars[1].right.text == "2.0k (200/s)", d.bars[1].right.text .. " / " .. w1.bars[1].right.text)
 db.columns.total = false; Tick()
@@ -590,9 +603,47 @@ assert(calls.reset == 2, "groupe rejoint : remise à zéro")
 Fire("GROUP_ROSTER_UPDATE")
 assert(calls.reset == 2, "changement dans le groupe : pas de remise à zéro")
 db.autoReset = false
+-- Re-clic sur Menu : le mouse-down global ferme le menu, le clic qui suit ne le rouvre pas.
+-- Aucune fonction de l'addon dans le chemin de fermeture de Blizzard (taint) : pas de HandlesGlobalMouseEvent.
+do
+	local create, opened = MenuUtil.CreateContextMenu, 0
+	MenuUtil.CreateContextMenu = function(owner, gen)
+		create(owner, gen); opened = opened + 1
+		local m = { shown = true }
+		function m:IsShown() return self.shown end
+		function m:Close() self.shown = false end
+		function m:GetOwnerRegion() return owner end
+		return m
+	end
+	local watch = ForeverMeterMenuWatch
+	local b = w1.menuButton
+	local over = true
+	b.IsMouseOver = function() return over end
+	-- Mouse-down global : Blizzard ferme le menu (avant ou après notre événement), puis OnClick au relâché.
+	local function Click(btn, blizzardFirst)
+		local m = b.fmMenu
+		if blizzardFirst and m then m:Close() end
+		watch.scripts.OnEvent(watch, "GLOBAL_MOUSE_DOWN", btn)
+		if m then m:Close() end
+		b.scripts.OnClick(b, btn)
+		if watch.shown then watch.scripts.OnUpdate(watch, 0.01) end
+	end
+	Click("LeftButton")
+	assert(opened == 1 and watch.shown and rawget(b, "HandlesGlobalMouseEvent") == nil, "menu ouvert, sans HandlesGlobalMouseEvent")
+	Click("LeftButton"); assert(opened == 1 and not watch.shown, "re-clic : menu fermé, pas rouvert")
+	Click("LeftButton"); assert(opened == 2, "clic suivant : menu rouvert")
+	Click("LeftButton", true); assert(opened == 2, "re-clic, Blizzard avant nous : pas rouvert")
+	Click("LeftButton"); assert(opened == 3)
+	b.fmMenu:Close(); watch.scripts.OnUpdate(watch, 0.01); Click("LeftButton"); assert(opened == 4, "menu fermé ailleurs : rouvert")
+	over = false; watch.scripts.OnEvent(watch, "GLOBAL_MOUSE_DOWN", "LeftButton"); b.fmMenu:Close(); watch.scripts.OnUpdate(watch, 0.01); over = true
+	Click("LeftButton"); assert(opened == 5, "fermé par un clic ailleurs : le clic suivant rouvre")
+	b.fmMenu:Close(); watch.scripts.OnUpdate(watch, 0.01)
+	MenuUtil.CreateContextMenu = create
+end
 -- Molette sur le titre : bas = mode suivant, haut = retour
 slash("mode damage"); w1.header.scripts.OnMouseWheel(w1.header, -1); assert(db.windows[1].mode == "heal", db.windows[1].mode)
 w1.header.scripts.OnMouseWheel(w1.header, 1); assert(db.windows[1].mode == "damage")
+w1.header.scripts.OnMouseWheel(w1.header, 1); assert(db.windows[1].mode == "threat", "menace avant dégâts")
 w1.header.scripts.OnMouseWheel(w1.header, 1); assert(db.windows[1].mode == ForeverMeter.MODES[#ForeverMeter.MODES], "boucle vers le dernier mode")
 slash("mode damage")
 InterfaceOptionsFrame_OpenToCategory = function() calls.openOptions = (calls.openOptions or 0) + 1 end
@@ -600,4 +651,93 @@ testCombat = true; slash("options"); assert(not calls.openOptions, "en combat : 
 testCombat = false; Fire("PLAYER_REGEN_ENABLED"); assert(calls.openOptions == 1, "ouverture après le combat")
 Fire("PLAYER_REGEN_ENABLED"); assert(calls.openOptions == 1, "une seule fois"); calls.openOptions = nil
 w1.optionsButton.scripts.OnClick(); assert(calls.openOptions == 1, "bouton Options du titre"); calls.openOptions = nil
+-- Canal du report : automatique (groupe d'instance, raid, groupe, say en instance, local seul) ou demandé
+do
+	local out, chatFrame, instance = {}, DEFAULT_CHAT_FRAME.AddMessage, false
+	SendChatMessage = function(msg, ch, _, target) out[#out + 1] = ch .. (target and ":" .. target or "") end
+	DEFAULT_CHAT_FRAME.AddMessage = function() out[#out + 1] = "local" end
+	IsInInstance = function() return instance end
+	local function Sent(cmd) out = {}; slash(cmd); return out[1] .. "/" .. #out end
+	slash("mode damage")
+	assert(Sent("report 1") == "PARTY/2", Sent("report 1"))
+	testRaid = true; assert(Sent("report 1") == "RAID/2"); testRaid = false
+	LE_PARTY_CATEGORY_INSTANCE, testInstanceGroup = 2, true
+	assert(Sent("report 1") == "INSTANCE_CHAT/2", "groupe d'instance")
+	testInstanceGroup = false
+	inGroup = false; assert(Sent("report 1") == "local/2", "seul hors instance : local")
+	instance = true; assert(Sent("report 1") == "SAY/2", "seul en instance : say")
+	instance = false; assert(Sent("report 1 say") == "local/2", "say demandé hors instance : local")
+	assert(Sent("report 1 guild") == "GUILD/2" and Sent("report whisper Bob") == "WHISPER:Bob/3", "canal demandé")
+	assert(Sent("report 1 yell") == "local/1" and Sent("report whisper") == "local/1", "canal inconnu : aide")
+	slash("mode deaths"); assert(Sent("report death 1 guild") == "GUILD/3", "récap de mort sur le canal demandé")
+	inGroup, LE_PARTY_CATEGORY_INSTANCE = true, nil
+	IsInInstance = function() return false end
+	SendChatMessage, DEFAULT_CHAT_FRAME.AddMessage = realSend, chatFrame
+end
+-- Modes interruptions et dispels : type de meter demandé à l'API, libellé du mode dans le titre
+do
+	local get, asked = C_DamageMeter.GetCombatSessionFromType, nil
+	C_DamageMeter.GetCombatSessionFromType = function(kind, t) asked = t; return get(kind, t) end
+	slash("mode interrupts"); Tick()
+	assert(asked == 5 and w1.title.text:find(NS.L.MODE_INTERRUPTS, 1, true) and w1.bars[1].left.text:find("Moi"), tostring(asked) .. " / " .. w1.title.text)
+	slash("mode dispels"); Tick()
+	assert(asked == ForeverMeter.MODE_INFO.dispels.type and w1.title.text:find(NS.L.MODE_DISPELS, 1, true), w1.title.text)
+	C_DamageMeter.GetCombatSessionFromType = get
+	slash("mode damage")
+end
+-- /fm mode <mode> [N] : fenêtre N seulement si elle existe
+slash("windows 2"); slash("mode heal 2"); assert(db.windows[2].mode == "heal" and db.windows[1].mode == "damage", "mode de la fenêtre 2")
+slash("mode taken 3"); assert(db.windows[1].mode == "damage" and db.windows[2].mode == "heal", "fenêtre absente : rien")
+slash("windows 1")
+-- Réglages du panneau en commande : bornés, au pas du curseur ; autohide réaffiche à la désactivation
+slash("rowheight 99"); assert(db.rowHeight == 40)
+slash("rowheight 12.6"); assert(db.rowHeight == 12, db.rowHeight)
+slash("bgalpha 0.33"); assert(math.abs(db.bgAlpha - 0.35) < 1e-9, db.bgAlpha)
+slash("bgalpha 5"); assert(db.bgAlpha == 1)
+-- Thèmes : cinq réglages posés d'un coup, casse libre ; nom inconnu sans effet ; police gardée sur client CJK
+do
+	local said, chatFrame = {}, DEFAULT_CHAT_FRAME.AddMessage
+	DEFAULT_CHAT_FRAME.AddMessage = function(_, m) said[#said + 1] = m end
+	slash("theme GLASS")
+	assert(db.barTexture == "glass" and db.barFont == "pt-sans-narrow-bold" and db.fontSize == 12 and db.rowHeight == 20 and db.bgAlpha == 0.4, "thème glass")
+	assert(said[#said]:find("glass"), said[#said])
+	slash("theme xx"); assert(db.barTexture == "glass", "thème inconnu : rien")
+	db.bgAlpha = 12 * 0.05; slash("theme classic"); assert(db.barFont == nil and db.fontSize == nil and db.rowHeight == 16 and db.barTexture == "blizzard")
+	db.bgAlpha = 12 * 0.05; slash("theme"); assert(said[#said - 1]:find("classic"), "opacité du curseur : thème reconnu " .. said[#said - 1])
+	slash("rowheight 17"); slash("theme"); assert(said[#said - 1]:find("Personnalisé"), "réglage changé : personnalisé")
+	slash("font arial"); local realLocale = GetLocale; GetLocale = function() return "koKR" end
+	slash("theme flat"); assert(db.barFont == "arial" and db.barTexture == "flat" and db.fontSize == 11, "koKR : police gardée")
+	slash("theme"); assert(said[#said - 1]:find("flat"), "koKR : police ignorée dans la comparaison")
+	GetLocale, DEFAULT_CHAT_FRAME.AddMessage = realLocale, chatFrame
+	slash("theme classic")
+end
+slash("autoreset"); assert(db.autoReset == true); slash("autoreset"); assert(db.autoReset == false)
+inGroup = false; slash("autohide"); assert(db.autoHide == true)
+ForeverMeterFrame:Hide(); slash("autohide"); assert(db.autoHide == false and ForeverMeterFrame.shown, "autohide coupé : fenêtres réaffichées")
+inGroup = true
+-- Réduire : titre seul, sans barres ni poignées ; sans titre (noHeader), sans effet ; bouton = bascule
+do
+	local full = w1:GetHeight()
+	w1.minimizeButton.scripts.OnClick(); Tick()
+	assert(db.windows[1].minimized and w1:GetHeight() == 18 and w1.rows == 0 and not w1.grip.shown, "réduite : " .. tostring(w1:GetHeight()))
+	db.windows[1].noHeader = true; slash("rows 5"); assert(w1:GetHeight() > 18 and w1.grip.shown, "sans titre : réduction ignorée")
+	db.windows[1].noHeader = nil; slash("rows 5")
+	w1.minimizeButton.scripts.OnClick(); Tick()
+	assert(db.windows[1].minimized == nil and w1:GetHeight() > 18 and w1.grip.shown, "agrandie")
+	assert(full > 18)
+end
+-- Masquer hors instance : masqué hors instance, réaffiché en entrant, et à la désactivation
+do
+	local instance = false
+	IsInInstance = function() return instance end
+	slash("instanceonly"); assert(db.instanceOnly and not ForeverMeterFrame.shown, "hors instance : masqué")
+	Fire("PLAYER_REGEN_DISABLED"); assert(not ForeverMeterFrame.shown, "combat hors instance : reste masqué")
+	Fire("PLAYER_REGEN_ENABLED")
+	instance = true; Fire("PLAYER_ENTERING_WORLD", false, false); assert(ForeverMeterFrame.shown, "en instance : affiché")
+	slash("toggle"); Fire("PLAYER_REGEN_DISABLED"); assert(not ForeverMeterFrame.shown, "masquage manuel tenu en instance")
+	Fire("PLAYER_REGEN_ENABLED"); slash("toggle")
+	instance = false; Fire("ZONE_CHANGED_NEW_AREA"); assert(not ForeverMeterFrame.shown, "sortie sans chargement : masqué")
+	slash("instanceonly"); assert(db.instanceOnly == false and ForeverMeterFrame.shown, "désactivé : réaffiché")
+	IsInInstance = function() return false end
+end
 print("uicheck OK")

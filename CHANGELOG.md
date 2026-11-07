@@ -1,5 +1,26 @@
 # ForeverMeter
 
+## 1.17.0
+
+### New
+- **Report channel**: `/fm report [N] [say|guild|party|raid|instance|whisper <name>]`, also after `/fm report death [N]`.
+  Without a channel, an instance group (dungeon finder) now gets the report in instance chat.
+- **Mode of any window**: `/fm mode <mode> [N]` sets the mode of window N (the first by default).
+- **Commands for panel settings**: `/fm rowheight <n>`, `/fm bgalpha <0-1>`, `/fm autohide`, `/fm autoreset`.
+- **Minimize a window**: the button left of the gear (or Menu → Minimize) keeps only its title bar. Click again to restore.
+- **Hide outside instances**: option in the panel, or `/fm instanceonly`. Windows show again on entering a dungeon, raid or battleground.
+- **Themes**: `classic`, `flat`, `glass` and `compact` set texture, font, font size, bar height and background opacity at once.
+  Choice at the top of the options panel, or `/fm theme <name>`. On Korean and Chinese clients, a theme keeps your font.
+
+### Changed
+- **Threat first**: threat is the first choice of the Display menu, and mode cycling (mouse wheel, title click, key binding) starts from it.
+- **Menu button**: clicking Menu again closes the open menu.
+
+### Fixed
+- Settings import: a window list with gaps, or a non-whole number of rows, is rejected.
+- Report: when one line cannot be sent (a name hidden by the game), the whole report stays in your chat window
+  instead of reaching the channel half sent.
+
 ## 1.16.0
 
 ### New

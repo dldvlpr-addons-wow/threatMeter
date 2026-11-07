@@ -21,7 +21,8 @@ _G.ForeverMeter = FM
 local issecretvalue = issecretvalue or function() return false end
 
 -- Modes : clé -> { label, type Enum.DamageMeterType }. La menace n'est pas dans C_DamageMeter.
-FM.MODES = { "damage", "heal", "absorbs", "taken", "interrupts", "dispels", "deaths", "threat" }
+-- Menace en tête : premier choix du menu Affichage.
+FM.MODES = { "threat", "damage", "heal", "absorbs", "taken", "interrupts", "dispels", "deaths" }
 FM.MODE_INFO = {
 	damage     = { label = L.MODE_DAMAGE,     type = 0 },
 	heal       = { label = L.MODE_HEAL,       type = 2 },
@@ -37,7 +38,7 @@ local METER_TYPES = Enum and Enum.DamageMeterType or {}
 for i, extra in ipairs({ { "enemytaken", "EnemyDamageTaken" }, { "avoidable", "AvoidableDamageTaken" } }) do
 	if METER_TYPES[extra[2]] then
 		FM.MODE_INFO[extra[1]] = { type = METER_TYPES[extra[2]] }
-		table.insert(FM.MODES, 4 + i, extra[1])
+		table.insert(FM.MODES, 5 + i, extra[1])
 	end
 end
 FM.SESSION_OVERALL, FM.SESSION_CURRENT = 0, 1
@@ -93,6 +94,7 @@ local DEFAULTS = {
 	warnSound = true,
 	showPets = true,
 	autoHide = false,                     -- fenêtres visibles seulement en combat ou en groupe
+	instanceOnly = false,                 -- fenêtres masquées hors instance
 	autoReset = false,                    -- remise à zéro à l'entrée dans une instance ou en rejoignant un groupe
 	columns = { total = true, perSecond = true, percent = true }, -- texte de droite des barres
 	locale = nil,                        -- nil = langue du client (GetLocale)
@@ -137,6 +139,17 @@ FM.BAR_FONTS = {
 	{ "skurri-cyr", "Fonts\\SKURRI_CYR.TTF" },
 }
 
+-- Thèmes du panneau et de /fm theme : réglages d'apparence posés d'un coup. barFont ou fontSize absent = défaut du client.
+FM.THEMES = {
+	{ name = "classic", barTexture = "blizzard", rowHeight = 16, bgAlpha = 0.6 },
+	{ name = "flat", barTexture = "flat", barFont = "fira-sans-condensed", fontSize = 11, rowHeight = 18, bgAlpha = 0.8 },
+	{ name = "glass", barTexture = "glass", barFont = "pt-sans-narrow-bold", fontSize = 12, rowHeight = 20, bgAlpha = 0.4 },
+	{ name = "compact", barTexture = "gradient", fontSize = 9, rowHeight = 12, bgAlpha = 0.5 },
+}
+FM.THEME_KEYS = { "barTexture", "barFont", "fontSize", "rowHeight", "bgAlpha" }
+-- Les polices livrées n'ont pas l'alphabet coréen ni chinois : sur ces clients, un thème garde la police choisie.
+FM.CJK_LOCALES = { koKR = true, zhCN = true, zhTW = true }
+
 ------------------------------------------------------------------------
 -- 1. Logique pure
 ------------------------------------------------------------------------
@@ -157,6 +170,28 @@ function FM.MediaList(kind)
 	table.sort(extra, function(a, b) return a[1] < b[1] end)
 	for _, m in ipairs(extra) do list[#list + 1] = m end
 	return list
+end
+
+-- Nom saisi (casse libre) -> thème, ou nil.
+function FM.FindTheme(input)
+	input = (input or ""):lower()
+	for _, t in ipairs(FM.THEMES) do
+		if t.name == input then return t end
+	end
+end
+
+-- Nom du thème dont tous les réglages valent ceux de `settings`, sinon nil. keepFont : police ignorée (client CJK).
+-- Tolérance sur les nombres : le curseur d'opacité arrondit par multiples de 0.05 (12 * 0.05 ~= 0.6).
+function FM.CurrentTheme(settings, keepFont)
+	for _, t in ipairs(FM.THEMES) do
+		local same = true
+		for _, k in ipairs(FM.THEME_KEYS) do
+			local a, b = settings[k], t[k]
+			if not (keepFont and k == "barFont") and a ~= b
+				and not (type(a) == "number" and type(b) == "number" and math.abs(a - b) < 1e-6) then same = false end
+		end
+		if same then return t.name end
+	end
 end
 
 -- Nom saisi (casse libre) -> nom et chemin du média, ou nil.
@@ -435,7 +470,8 @@ local SIDES = { BOTTOM = true, RIGHT = true, TOP = true, LEFT = true }
 local function Bounded(key)
 	return function(v)
 		local b = FM.BOUNDS[key]
-		return type(v) == "number" and v >= b.min and v <= b.max, v
+		-- rows sert d'indice de liste : entier exigé ; width reste libre (anciennes largeurs non entières sauvegardées)
+		return type(v) == "number" and v >= b.min and v <= b.max and (key ~= "rows" or v == math.floor(v)), v
 	end
 end
 local function Boolean(v) return type(v) == "boolean", v end
@@ -472,7 +508,7 @@ local WINDOW_FIELDS = {
 	view = function(v) return v == "current" or v == "overall" or (type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge), v end, -- un sessionID repasse à current (InitDb)
 	rows = Bounded("rows"),
 	width = Bounded("width"),
-	bigNumber = Boolean, locked = Boolean, noHeader = Boolean, onlyMe = Boolean,
+	bigNumber = Boolean, locked = Boolean, noHeader = Boolean, onlyMe = Boolean, minimized = Boolean,
 	columns = ValidColumns,
 	point = ValidPoint,
 	barColor = ValidColor,
@@ -482,7 +518,7 @@ local WINDOW_FIELDS = {
 local SETTINGS_FIELDS = {
 	scale = Bounded("scale"), rows = Bounded("rows"), width = Bounded("width"), refresh = Bounded("refresh"),
 	warnPct = Bounded("warnPct"), fontSize = Bounded("fontSize"), rowHeight = Bounded("rowHeight"), bgAlpha = Bounded("bgAlpha"),
-	warnSound = Boolean, showPets = Boolean, autoHide = Boolean, autoReset = Boolean,
+	warnSound = Boolean, showPets = Boolean, autoHide = Boolean, autoReset = Boolean, instanceOnly = Boolean,
 	columns = ValidColumns,
 	locale = function(v) return type(v) == "string" and FM.FindLocale(v) == v, v end,
 	barTexture = Name, barFont = Name,
@@ -513,6 +549,8 @@ function FM.ValidateSettings(t)
 	local count = 0
 	for _ in pairs(list) do count = count + 1 end
 	if count ~= #list then return nil, "windows" end
+	-- # en Lua 5.1 peut rendre n'importe quelle bordure d'une liste à trous : clés 1..n exigées
+	for i = 1, #list do if list[i] == nil then return nil, "windows" end end
 	out.windows = {}
 	for i, c in ipairs(list) do
 		if type(c) ~= "table" or c.mode == nil then return nil, "windows." .. i end
@@ -529,6 +567,19 @@ function FM.ValidateSettings(t)
 		out.windows[i] = w
 	end
 	return out
+end
+
+-- Arguments de /fm report : "[N] [say|guild|party|raid|instance|whisper <nom>]" -> N, canal, cible.
+-- Canal absent : nil (choix automatique). Canal inconnu, chuchotement sans nom, N nul ou collé au canal : false.
+local REPORT_CHANNELS = { say = "SAY", guild = "GUILD", party = "PARTY", raid = "RAID", instance = "INSTANCE_CHAT", whisper = "WHISPER" }
+function FM.ParseReport(arg)
+	local digits, space, word, target = arg:match("^(%d*)(%s*)(%S*)%s*(.-)$")
+	local count = tonumber(digits)
+	if count == 0 or (count and word ~= "" and space == "") then return false end
+	if word == "" then return count end
+	local channel = REPORT_CHANNELS[word:lower()]
+	if not channel or (channel == "WHISPER") ~= (target ~= "") then return false end
+	return count, channel, target ~= "" and target or nil
 end
 
 ------------------------------------------------------------------------
@@ -596,7 +647,10 @@ end
 -- cfg nil : fenêtre de détail, avec titre.
 local BIG_NUMBER_HEIGHT = 36
 local function HeaderHeight(cfg) return cfg and cfg.noHeader and 0 or 18 end
+-- Réduite : titre seul. Sans titre (noHeader), la réduction est ignorée : la fenêtre deviendrait invisible.
+local function Minimized(cfg) return cfg and cfg.minimized and not cfg.noHeader end
 local function WindowHeight(rows, cfg)
+	if Minimized(cfg) then return HeaderHeight(cfg) end
 	if cfg and cfg.bigNumber then return HeaderHeight(cfg) + BIG_NUMBER_HEIGHT end
 	return HeaderHeight(cfg) + (rows or db.rows) * (db.rowHeight + 1) + 3
 end
@@ -606,7 +660,7 @@ local function Rows(win) return win.cfg.rows or db.rows end
 local function Width(win) return win.cfg.width or db.width end
 -- Lignes affichées : aucune barre sous le gros chiffre, une seule pour « ma barre seulement ».
 local function ShownRows(win)
-	if win.cfg.bigNumber then return 0 end
+	if win.cfg.bigNumber or Minimized(win.cfg) then return 0 end
 	if win.cfg.onlyMe then return 1 end
 	return Rows(win)
 end
@@ -945,8 +999,12 @@ local function LayoutWindow(f, rows, width)
 	f:SetWidth(width)
 	f:SetHeight(WindowHeight(rows, f.cfg))
 	if f.cfg then
+		local minimized = Minimized(f.cfg)
 		f.header:SetShown(not f.cfg.noHeader)
-		f.big:SetShown(f.cfg.bigNumber == true)
+		f.big:SetShown(f.cfg.bigNumber == true and not minimized)
+		f.grip:SetShown(not minimized)
+		f.gripLeft:SetShown(not minimized)
+		f.minimizeButton:SetNormalTexture(minimized and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
 	end
 	LayoutBars(f, rows, width)
 end
@@ -1090,7 +1148,7 @@ end
 -- Détail par sort de la source sélectionnée dans detail.owner. Le GUID d'un autre joueur est secret en combat.
 local function RenderDetail()
 	local win = detail.owner
-	if not win or not win:IsShown() or not win.selectedGuid or win.cfg.mode == "threat" or not DamageMeter then
+	if not win or not win:IsShown() or Minimized(win.cfg) or not win.selectedGuid or win.cfg.mode == "threat" or not DamageMeter then
 		detail:Hide()
 		return
 	end
@@ -1525,7 +1583,16 @@ local WINDOW_FLAGS = {
 	{ key = "onlyMe", label = "MENU_ONLY_ME" },
 	{ key = "noHeader", label = "MENU_NO_HEADER" },
 	{ key = "bigNumber", label = "MENU_BIG_NUMBER" },
+	{ key = "minimized", label = "MENU_MINIMIZE" },
 }
+-- Bouton du titre et case du menu. Bord haut fixe, comme à la poignée : l'ancre CENTER ou BOTTOM* déplacerait le titre.
+-- Une fenêtre collée à une autre garde son ancre.
+local function ToggleMinimized(f)
+	if not f.cfg.anchor and f:GetLeft() then f.cfg.point = { "TOPLEFT", nil, "BOTTOMLEFT", f:GetLeft(), f:GetTop() } end
+	f.cfg.minimized = not f.cfg.minimized or nil
+	Layout()
+	Refresh()
+end
 local COLUMN_CHOICES = {
 	{ key = "total", label = "OPT_COL_TOTAL" },
 	{ key = "perSecond", label = "OPT_COL_PER_SECOND" },
@@ -1558,10 +1625,14 @@ local function MenuEntries(win)
 	end
 	if #db.windows > 1 then entries[#entries + 1] = { text = L.MENU_CLOSE_WINDOW, func = function() CloseWindow(win) end } end
 	-- Affichage de cette fenêtre seule : vrai ou nil (absent de la sauvegarde).
-	for _, o in ipairs(WINDOW_FLAGS) do
+	-- Sans titre, Réduire n'aurait aucun effet visible (Minimized l'ignore) : la case est retirée.
+	for _, o in ipairs(WINDOW_FLAGS) do if o.key ~= "minimized" or not win.cfg.noHeader then
 		entries[#entries + 1] = { text = L[o.label], checkbox = true, checked = function() return win.cfg[o.key] == true end,
-			func = function() win.cfg[o.key] = not win.cfg[o.key] or nil; Layout(); Refresh() end }
-	end
+			func = function()
+				if o.key == "minimized" then ToggleMinimized(win); return end
+				win.cfg[o.key] = not win.cfg[o.key] or nil; Layout(); Refresh()
+			end }
+	end end
 	entries[#entries + 1] = { divider = true }
 	entries[#entries + 1] = { title = L.OPT_COLUMNS }
 	-- Première case cochée : la fenêtre prend sa propre copie du réglage commun.
@@ -1602,10 +1673,11 @@ end
 local legacyDropDown = EasyMenu and CreateFrame("Frame", "ForeverMeterDropDown", UIParent, "UIDropDownMenuTemplate")
 if legacyDropDown then legacyDropDown:Hide() end
 
--- Affiche des entrées neutres en menu déroulant sous `owner`. Faux si le client n'a aucune API de menu.
+-- Affiche des entrées neutres en menu déroulant sous `owner`. Faux si le client n'a aucune API de menu ;
+-- sinon vrai et le menu ouvert (MenuUtil seulement, nil possible).
 local function ShowEntries(entries, owner)
 	if MenuUtil and MenuUtil.CreateContextMenu then
-		MenuUtil.CreateContextMenu(owner, function(_, root)
+		return true, MenuUtil.CreateContextMenu(owner, function(_, root)
 			-- Longues listes (médias LibSharedMedia) : défilement plutôt qu'un menu plus haut que l'écran.
 			if #entries > 20 and root.SetScrollMode then root:SetScrollMode(400) end
 			for _, e in ipairs(entries) do
@@ -1630,11 +1702,39 @@ local function ShowEntries(entries, owner)
 	return true
 end
 
-local function OpenMenu(win, owner)
-	if not ShowEntries(MenuEntries(win), owner) then
+-- Le menu se ferme au mouse-down global (Blizzard_Menu/Menu.lua:52-71), avant OnClick : sans garde, un re-clic
+-- sur l'owner le rouvrait. Ni HandlesGlobalMouseEvent ni callback de fermeture : Blizzard les appelle sans
+-- securecall, et la fermeture des menus tournerait teintée. L'état ouvert est relevé à chaque image ; le mouse-down
+-- lit celui de l'image précédente, quel que soit l'ordre avec le gestionnaire de Blizzard.
+-- Pool de frames : le proxy peut servir à un autre menu, d'où GetOwnerRegion.
+local function MenuOpenFrom(owner)
+	local menu = owner.fmMenu
+	return menu ~= nil and menu:IsShown() and menu:GetOwnerRegion() == owner
+end
+local menuWatch = CreateFrame("Frame", "ForeverMeterMenuWatch")
+menuWatch:Hide()
+menuWatch:SetScript("OnUpdate", function(self)
+	self.open = MenuOpenFrom(self.owner)
+	if not self.open then self:Hide() end
+end)
+menuWatch:RegisterEvent("GLOBAL_MOUSE_DOWN")
+menuWatch:SetScript("OnEvent", function(self, _, button)
+	local owner = self.owner
+	if owner then owner.fmSkipClick = self.open and button == owner.fmMenuButton and owner:IsMouseOver() end
+end)
+
+local function OpenMenu(win, owner, button)
+	if owner.fmSkipClick then owner.fmSkipClick = nil; return end -- ce clic vient de fermer le menu
+	local shown, menu = ShowEntries(MenuEntries(win), owner)
+	if not shown then
 		CycleMode(win, 1)
 		Refresh()
+		return
 	end
+	if menuWatch.owner then menuWatch.owner.fmSkipClick = nil end
+	owner.fmMenu, owner.fmMenuButton = menu, button
+	menuWatch.owner, menuWatch.open = owner, menu ~= nil
+	menuWatch:SetShown(menu ~= nil)
 end
 
 local function MakeHeaderButton(parent, text, width)
@@ -1660,7 +1760,7 @@ local function NewWindow(i)
 	f.resetButton:SetScript("OnClick", ResetData)
 	f.menuButton = MakeHeaderButton(f.header, L.BTN_MENU, 44)
 	f.menuButton:SetPoint("RIGHT", f.resetButton, "LEFT", -2, 0)
-	f.menuButton:SetScript("OnClick", function(self) OpenMenu(f, self) end)
+	f.menuButton:SetScript("OnClick", function(self, button) OpenMenu(f, self, button) end)
 	-- Cadenas : verrou de position et de taille de cette fenêtre seule.
 	f.lockButton = CreateFrame("Button", nil, f.header)
 	f.lockButton:SetSize(14, 14)
@@ -1687,7 +1787,20 @@ local function NewWindow(i)
 		GameTooltip:Show()
 	end)
 	f.optionsButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	f.title:SetPoint("RIGHT", f.optionsButton, "LEFT", -4, 0)
+	-- Réduire / agrandir (cfg.minimized) : texture posée par LayoutWindow selon l'état.
+	f.minimizeButton = CreateFrame("Button", nil, f.header)
+	f.minimizeButton:SetSize(14, 14)
+	f.minimizeButton:SetPoint("RIGHT", f.optionsButton, "LEFT", -2, 0)
+	f.minimizeButton:SetNormalTexture("Interface\\Buttons\\UI-MinusButton-Up")
+	f.minimizeButton:SetHighlightTexture("Interface\\Buttons\\UI-PlusButton-Hilight", "ADD")
+	f.minimizeButton:SetScript("OnClick", function() ToggleMinimized(f) end)
+	f.minimizeButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(L.MENU_MINIMIZE)
+		GameTooltip:Show()
+	end)
+	f.minimizeButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	f.title:SetPoint("RIGHT", f.minimizeButton, "LEFT", -4, 0)
 	-- Gros chiffre (cfg.bigNumber) : sa propre valeur, sans barres, en bas de la fenêtre.
 	f.big = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
 	f.big:SetFont(STANDARD_TEXT_FONT, 24, "OUTLINE")
@@ -1698,7 +1811,7 @@ local function NewWindow(i)
 	f.big:Hide()
 	-- Sans titre (cfg.noHeader) : clic droit sur la fenêtre ou une barre pour le menu.
 	f:SetScript("OnMouseUp", function(self, button)
-		if button == "RightButton" then OpenMenu(f, self) end
+		if button == "RightButton" then OpenMenu(f, self, button) end
 	end)
 	f.OnMoved = function()
 		local point, _, relPoint, x, y = f:GetPoint()
@@ -1719,7 +1832,7 @@ local function NewWindow(i)
 		Layout()
 	end)
 	f.header:SetScript("OnClick", function(self, button)
-		if button == "RightButton" then OpenMenu(f, self) else CycleMode(f, 1); Refresh() end
+		if button == "RightButton" then OpenMenu(f, self, button) else CycleMode(f, 1); Refresh() end
 	end)
 	-- Molette sur le titre : mode suivant vers le bas, précédent vers le haut.
 	f.header:EnableMouseWheel(true)
@@ -1803,7 +1916,7 @@ local function NewWindow(i)
 		local bar = MakeBar(f, b)
 		bar.win = f
 		bar:SetScript("OnMouseUp", function(self, button)
-			if button == "RightButton" and f.cfg.noHeader then OpenMenu(f, self) else BarClick(self) end
+			if button == "RightButton" and f.cfg.noHeader then OpenMenu(f, self, button) else BarClick(self) end
 		end)
 		bar:SetScript("OnEnter", ShowTooltip)
 		bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1837,15 +1950,34 @@ _G.ForeverMeter_Reset = function() ResetData(); Print(L.MSG_RESET) end
 _G.ForeverMeter_NextMode = function() CycleMode(windows[1], 1); Refresh() end
 
 -- Affichage automatique (db.autoHide) : visible en combat ou en groupe, masqué 10 s après la fin du combat en solo.
-local autoHideIn
+-- Hors instance (db.instanceOnly) : masquées tout de suite, quel que soit autoHide. Sans autoHide, réaffichées à
+-- l'entrée seulement si cette règle les a masquées : un masquage par /fm toggle tient en instance. Mode test : rien.
+local autoHideIn, hiddenOutside
 local function AutoShow(inCombat)
-	if not db.autoHide then autoHideIn = nil; return end
+	if testMode then autoHideIn = nil; return end
+	if db.instanceOnly and not IsInInstance() then
+		autoHideIn, hiddenOutside = nil, true
+		for i = 1, #db.windows do windows[i]:Hide() end
+		detail:Hide()
+		return
+	end
+	if not db.autoHide then
+		autoHideIn = nil
+		if hiddenOutside then for i = 1, #db.windows do windows[i]:Show() end end
+		hiddenOutside = nil
+		return
+	end
+	hiddenOutside = nil
 	if inCombat or IsInGroup() then
 		autoHideIn = nil
 		for i = 1, #db.windows do windows[i]:Show() end
 	else
 		autoHideIn = autoHideIn or 10
 	end
+end
+-- Après un changement de réglage (panneau, commande, import) : sans masquage automatique, tout réapparaît.
+local function ApplyVisibility()
+	if db.autoHide or db.instanceOnly then AutoShow(UnitAffectingCombat("player")) else for i = 1, #db.windows do windows[i]:Show() end end
 end
 
 -- Remise à zéro automatique (db.autoReset) : entrée dans une autre instance que la dernière, ou passage de solo à groupe.
@@ -1946,6 +2078,7 @@ end)
 
 Register(events, "ADDON_LOADED")
 Register(events, "PLAYER_ENTERING_WORLD")
+Register(events, "ZONE_CHANGED_NEW_AREA")
 Register(events, "GROUP_ROSTER_UPDATE")
 Register(events, "PLAYER_REGEN_ENABLED")
 Register(events, "PLAYER_REGEN_DISABLED")
@@ -1996,6 +2129,8 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
 		AutoReset(arg1 or arg2) -- isInitialLogin, isReloadingUi
 		AutoShow(UnitAffectingCombat("player"))
 		Refresh()
+	elseif event == "ZONE_CHANGED_NEW_AREA" then
+		AutoShow(UnitAffectingCombat("player")) -- changement de zone sans écran de chargement
 	elseif event == "DAMAGE_METER_RESET" then
 		for i = 1, #db.windows do
 			local win = windows[i]
@@ -2011,35 +2146,47 @@ end)
 ------------------------------------------------------------------------
 -- Commandes : /fm (mode, report et debug agissent sur la première fenêtre)
 ------------------------------------------------------------------------
--- Ligne de report : raid, groupe, ou say en instance. SAY est interdit aux addons hors instance
--- (ADDON_ACTION_FORBIDDEN) : seul, on affiche en local.
+-- Ligne de report : canal demandé (/fm report ... guild), sinon groupe d'instance, raid, groupe, ou say en
+-- instance. SAY est interdit aux addons hors instance (ADDON_ACTION_FORBIDDEN) : on affiche alors en local.
 -- Message secret (nom de session d'une créature en instance, joueur sous restriction de carte) : SendChatMessage
 -- le refuse, la ligne est affichée en local.
-local function ChatSend(msg)
-	local channel = IsInRaid() and "RAID" or (IsInGroup() and "PARTY" or (IsInInstance() and "SAY" or nil))
+local function ChatSend(msg, channel, target)
+	if not channel then
+		-- Groupe de recherche : PARTY et RAID visent le groupe d'origine, INSTANCE_CHAT le groupe d'instance.
+		local instanceGroup = LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE)
+		channel = instanceGroup and "INSTANCE_CHAT" or (IsInRaid() and "RAID" or (IsInGroup() and "PARTY" or (IsInInstance() and "SAY" or nil)))
+	elseif channel == "SAY" and not IsInInstance() then
+		channel = nil
+	end
 	if channel and not issecretvalue(msg) then
-		(C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage)(msg, channel)
+		(C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage)(msg, channel, nil, target)
 	else
 		Print(msg)
 	end
 end
 
-ReportDeath = function(src)
+-- Un report entier : une seule ligne secrète et le chat la refuserait, le canal recevrait un report tronqué.
+-- Tout reste alors en local.
+local function SendLines(messages, channel, target)
+	local send = ChatSend
+	for _, msg in ipairs(messages) do if issecretvalue(msg) then send = Print end end
+	for _, msg in ipairs(messages) do send(msg, channel, target) end
+end
+
+ReportDeath = function(src, channel, target)
 	local events, message = RecapEvents(src.deathRecapID)
 	if not events then Print(message); return end
 	-- Lignes du chat sans les noms de créature secrets. Un message encore secret (nom du mort, sort) : le chat
 	-- le refuserait et le groupe recevrait un récap tronqué, tout reste donc en local.
 	local messages = { string.format(L.REPORT_DEATH_HEADER, src.name) }
 	for _, line in ipairs(FM.RecapLines(events, GetSpellNameCompat, nil, true)) do messages[#messages + 1] = line.left .. "  " .. line.right end
-	local send = ChatSend
-	for _, msg in ipairs(messages) do if issecretvalue(msg) then send = Print end end
-	for _, msg in ipairs(messages) do send(msg) end
+	SendLines(messages, channel, target)
 end
 
-local function Report(win, count)
+local function Report(win, count, channel, target)
 	local lines, err = ReportLines(win, count)
 	if not lines then Print(err); return end
-	for _, line in ipairs(lines) do ChatSend(line) end
+	SendLines(lines, channel, target)
 end
 
 -- Report des sorts de la source ouverte dans le panneau de détail : clic droit sur son titre.
@@ -2057,18 +2204,20 @@ local function ReportDetail(count)
 	if win.compareGuid then other, otherSecret = SortedSpells(ReadSource(win, win.compareGuid)) end
 	if other and not otherSecret then
 		local rows = FM.CompareSpells(spells, other)
-		ChatSend(string.format(L.REPORT_DETAIL_HEADER, (win.selectedName or "?") .. " vs " .. (win.compareName or "?"), label, sessionLabel))
+		local lines = { string.format(L.REPORT_DETAIL_HEADER, (win.selectedName or "?") .. " vs " .. (win.compareName or "?"), label, sessionLabel) }
 		for i = 1, math.min(count, #rows) do
 			local r = rows[i]
-			ChatSend(string.format("%d. %s  %s", i, SpellLabel(win, r, true), FM.FormatCompare(r.a, r.b)))
+			lines[#lines + 1] = string.format("%d. %s  %s", i, SpellLabel(win, r, true), FM.FormatCompare(r.a, r.b))
 		end
+		SendLines(lines)
 		return
 	end
-	ChatSend(string.format(L.REPORT_DETAIL_HEADER, win.selectedName or "?", label, sessionLabel))
+	local lines = { string.format(L.REPORT_DETAIL_HEADER, win.selectedName or "?", label, sessionLabel) }
 	for i = 1, math.min(count, #spells) do
 		local s = spells[i]
-		ChatSend(string.format("%d. %s  %s", i, SpellLabel(win, s, true), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), source.totalAmount, false, Columns(win))))
+		lines[#lines + 1] = string.format("%d. %s  %s", i, SpellLabel(win, s, true), FM.FormatRow(s.totalAmount, PerSecond(win, s, session, false), source.totalAmount, false, Columns(win)))
 	end
+	SendLines(lines)
 end
 
 detail.header:SetScript("OnClick", function(_, button)
@@ -2158,7 +2307,7 @@ local function ImportSettings(text)
 	Layout()
 	Refresh()
 	-- Même effet que la case « masquer hors combat » du panneau.
-	if db.autoHide then AutoShow(UnitAffectingCombat("player")) else for i = 1, #db.windows do windows[i]:Show() end end
+	ApplyVisibility()
 	RefreshOptions()
 	NS.Mirror:Flush()
 	copyFrame:Hide()
@@ -2180,6 +2329,15 @@ local function SetCommonSize(key, v)
 	db[key] = FM.Clamp(key, v)
 	for _, c in ipairs(db.windows) do c[key] = nil end
 end
+
+-- Liste du panneau et /fm theme. Le texte du bouton et de /fm theme suit CurrentTheme.
+local function ApplyTheme(t)
+	local keepFont = FM.CJK_LOCALES[GetLocale()]
+	for _, k in ipairs(FM.THEME_KEYS) do
+		if not (keepFont and k == "barFont") then db[k] = t[k] end
+	end
+end
+local function CurrentTheme() return FM.CurrentTheme(db, FM.CJK_LOCALES[GetLocale()]) end
 
 ------------------------------------------------------------------------
 -- Panneau d'options : Options > AddOns > ForeverMeter, /fm options, entrée du menu des fenêtres
@@ -2206,7 +2364,20 @@ local function OptionChoice(parent, key, x, y, entries, current)
 	b:SetSize(200, 22)
 	b:SetPoint("TOPLEFT", x, y - 16)
 	b:SetScript("OnClick", function(self) ShowEntries(entries(), self) end)
-	refreshers[#refreshers + 1] = function() b:SetText(current()) end
+	local function Paint() b:SetText(current()) end
+	refreshers[#refreshers + 1] = Paint
+	return Paint
+end
+local PaintThemeButton   -- repeint par les curseurs : taille de police, hauteur et opacité font passer à « Custom »
+
+-- Cases du panneau, /fm autohide et /fm instanceonly : désactivé, les fenêtres masquées réapparaissent.
+local function SetAutoHide(v)
+	db.autoHide = v
+	ApplyVisibility()
+end
+local function SetInstanceOnly(v)
+	db.instanceOnly = v
+	ApplyVisibility()
 end
 
 local function OptionSlider(parent, key, x, y, bound, get, set)
@@ -2231,7 +2402,7 @@ local function OptionSlider(parent, key, x, y, bound, get, set)
 	s:SetScript("OnValueChanged", function(_, v)
 		v = math.floor(v / step + 0.5) * step
 		Paint(v)
-		if not refreshing then set(v); Layout(); Refresh() end
+		if not refreshing then set(v); Layout(); Refresh(); if PaintThemeButton then PaintThemeButton() end end
 	end)
 	-- SetValue ne déclenche rien si la valeur ne change pas : peindre explicitement.
 	refreshers[#refreshers + 1] = function() s:SetValue(get()); Paint(get()) end
@@ -2267,6 +2438,14 @@ local function LanguageEntries()
 	return entries
 end
 
+local function ThemeEntries()
+	local entries = {}
+	for _, t in ipairs(FM.THEMES) do
+		entries[#entries + 1] = { text = t.name, checked = function() return CurrentTheme() == t.name end, func = function() ApplyTheme(t); ApplyOption() end }
+	end
+	return entries
+end
+
 do
 	local p = CreateFrame("Frame")
 	p.name = "ForeverMeter"
@@ -2282,6 +2461,8 @@ do
 	OptionSlider(p, "OPT_FONT_SIZE", LEFT, -160, "fontSize", function() return db.fontSize or 10 end, function(v) db.fontSize = v end)
 	OptionChoice(p, "OPT_LANG", LEFT, -226, LanguageEntries, function() return db.locale or ("auto (" .. GetLocale() .. ")") end)
 
+	-- Au-dessus du curseur d'échelle, à hauteur du titre : seule place libre du panneau.
+	PaintThemeButton = OptionChoice(p, "OPT_THEME", RIGHT, -12, ThemeEntries, function() return CurrentTheme() or L.OPT_THEME_CUSTOM end)
 	OptionSlider(p, "OPT_SCALE", RIGHT, -56, "scale", function() return db.scale end, function(v) db.scale = v end)
 	OptionSlider(p, "OPT_REFRESH", RIGHT, -116, "refresh", function() return db.refresh end, function(v) db.refresh = v end)
 	OptionSlider(p, "OPT_WARN", RIGHT, -176, "warnPct", function() return db.warnPct end, function(v) db.warnPct = v end)
@@ -2289,10 +2470,11 @@ do
 	OptionCheck(p, "OPT_COL_TOTAL", RIGHT, -256, function() return db.columns.total end, function(v) db.columns.total = v end)
 	OptionCheck(p, "OPT_COL_PER_SECOND", RIGHT, -286, function() return db.columns.perSecond end, function(v) db.columns.perSecond = v end)
 	OptionCheck(p, "OPT_COL_PERCENT", RIGHT, -316, function() return db.columns.percent end, function(v) db.columns.percent = v end)
-	OptionSlider(p, "OPT_ROW_HEIGHT", RIGHT, -440, "rowHeight", function() return db.rowHeight end, function(v) db.rowHeight = v end)
-	OptionSlider(p, "OPT_BG_ALPHA", RIGHT, -500, "bgAlpha", function() return db.bgAlpha end, function(v) db.bgAlpha = v end)
+	OptionSlider(p, "OPT_ROW_HEIGHT", RIGHT, -456, "rowHeight", function() return db.rowHeight end, function(v) db.rowHeight = v end)
+	OptionSlider(p, "OPT_BG_ALPHA", RIGHT, -512, "bgAlpha", function() return db.bgAlpha end, function(v) db.bgAlpha = v end)
+	OptionCheck(p, "OPT_INSTANCE_ONLY", RIGHT, -346, function() return db.instanceOnly end, SetInstanceOnly)
 	-- Mêmes chemins que /fm windows, /fm rows et /fm width.
-	OptionSlider(p, "OPT_WINDOWS", RIGHT, -376, "windows", function() return #db.windows end, SetWindowCount)
+	OptionSlider(p, "OPT_WINDOWS", RIGHT, -400, "windows", function() return #db.windows end, SetWindowCount)
 	OptionSlider(p, "OPT_ROWS", LEFT, -446, "rows", function() return db.rows end, function(v) SetCommonSize("rows", v) end)
 	OptionSlider(p, "OPT_WIDTH", LEFT, -506, "width", function() return db.width end, function(v) SetCommonSize("width", v) end)
 
@@ -2314,10 +2496,7 @@ do
 	OptionCheck(p, "OPT_LOCK", LEFT, -346, function() return windows[1] and windows[1].cfg.locked end, function(v)
 		for i = 1, #db.windows do windows[i].cfg.locked = v or nil; windows[i].UpdateLock() end
 	end)
-	OptionCheck(p, "OPT_AUTO_HIDE", LEFT, -376, function() return db.autoHide end, function(v)
-		db.autoHide = v
-		if v then AutoShow(UnitAffectingCombat("player")) else for i = 1, #db.windows do windows[i]:Show() end end
-	end)
+	OptionCheck(p, "OPT_AUTO_HIDE", LEFT, -376, function() return db.autoHide end, SetAutoHide)
 	OptionCheck(p, "OPT_AUTO_RESET", LEFT, -406, function() return db.autoReset end, function(v) db.autoReset = v end)
 
 	optionsPanel = p
@@ -2350,6 +2529,9 @@ SlashCmdList.FOREVERMETER = function(input)
 	cmd = cmd:lower()
 	local num = tonumber(arg)
 	local first = windows[1]
+	-- /fm mode <mode> [N] : fenêtre N, la première par défaut
+	local modeName, modeWindow = arg:lower():match("^(%S+)%s*(%d*)$")
+	modeWindow = tonumber(modeWindow) or 1
 	if cmd == "lock" or cmd == "unlock" then
 		for i = 1, #db.windows do windows[i].cfg.locked = cmd == "lock"; windows[i].UpdateLock() end
 		Print(cmd == "lock" and L.MSG_LOCKED or L.MSG_UNLOCKED)
@@ -2363,15 +2545,30 @@ SlashCmdList.FOREVERMETER = function(input)
 		Print(string.format(L.MSG_WINDOWS, #db.windows))
 	elseif cmd == "export" then ExportSettings(); return
 	elseif cmd == "import" then OpenImport(); return
-	elseif cmd == "mode" and FM.MODE_INFO[arg:lower()] then SelectMode(first, arg:lower())
+	elseif cmd == "mode" and modeName and FM.MODE_INFO[modeName] and windows[modeWindow] and modeWindow <= #db.windows then
+		SelectMode(windows[modeWindow], modeName)
 	elseif cmd == "report" and arg:lower():match("^death") then
-		-- /fm report death [N] : recap de la mort affichée à la ligne N (1 par défaut) de la première fenêtre Morts.
+		-- /fm report death [N] [canal] : recap de la mort affichée à la ligne N (1 par défaut) de la première fenêtre Morts.
+		local count, channel, target = FM.ParseReport(arg:match("^%S+%s*(.-)$"))
+		if count == false then Print(L.HELP_1:format(table.concat(FM.MODES, ", "))); return end
 		local win
 		for i = 1, #db.windows do if windows[i].cfg.mode == "deaths" then win = windows[i]; break end end
-		local src = win and VisibleSources(win, ReadSession(win))[tonumber(arg:match("%d+")) or 1]
-		if src then ReportDeath(src) else Print(L.REPORT_NOTHING) end
+		local src = win and VisibleSources(win, ReadSession(win))[count or 1]
+		if src then ReportDeath(src, channel, target) else Print(L.REPORT_NOTHING) end
 		return
-	elseif cmd == "report" then Report(first, num or 5); return
+	elseif cmd == "report" then
+		local count, channel, target = FM.ParseReport(arg)
+		if count == false then Print(L.HELP_1:format(table.concat(FM.MODES, ", "))); return end
+		Report(first, count or 5, channel, target)
+		return
+	elseif cmd == "rowheight" and num then db.rowHeight = FM.Clamp("rowHeight", num); Print(string.format("%s : %g", L.OPT_ROW_HEIGHT, db.rowHeight))
+	elseif cmd == "bgalpha" and num then
+		-- Même pas que le curseur du panneau
+		db.bgAlpha = math.floor(FM.Clamp("bgAlpha", num) / FM.BOUNDS.bgAlpha.step + 0.5) * FM.BOUNDS.bgAlpha.step
+		Print(string.format("%s : %g", L.OPT_BG_ALPHA, db.bgAlpha))
+	elseif cmd == "autohide" then SetAutoHide(not db.autoHide); Print(L.OPT_AUTO_HIDE .. " : " .. (db.autoHide and L.WORD_ON or L.WORD_OFF))
+	elseif cmd == "instanceonly" then SetInstanceOnly(not db.instanceOnly); Print(L.OPT_INSTANCE_ONLY .. " : " .. (db.instanceOnly and L.WORD_ON or L.WORD_OFF))
+	elseif cmd == "autoreset" then db.autoReset = not db.autoReset; Print(L.OPT_AUTO_RESET .. " : " .. (db.autoReset and L.WORD_ON or L.WORD_OFF))
 	elseif cmd == "debug" then
 		local ok, err = pcall(Debug, first)
 		if not ok then Print("debug : erreur " .. tostring(err)) end
@@ -2384,7 +2581,7 @@ SlashCmdList.FOREVERMETER = function(input)
 	elseif cmd == "pets" then db.showPets = not db.showPets; Print(string.format(L.MSG_PETS, db.showPets and L.WORD_SHOWN or L.WORD_HIDDEN))
 	elseif cmd == "test" then
 		testMode = not testMode
-		if testMode then for i = 1, #db.windows do windows[i]:Show() end end
+		if testMode then for i = 1, #db.windows do windows[i]:Show() end else ApplyVisibility() end
 		Print(string.format(L.MSG_TEST, testMode and L.WORD_ON or L.WORD_OFF))
 	elseif cmd == "texture" then
 		local list = FM.MediaList("statusbar")
@@ -2415,6 +2612,16 @@ SlashCmdList.FOREVERMETER = function(input)
 		if size then db.fontSize = FM.Clamp("fontSize", size) end
 		if word:lower() == "default" and not size then db.fontSize = nil end
 		Print(string.format(L.MSG_FONT, db.barFont or "default", db.fontSize or 10))
+	elseif cmd == "theme" then
+		local t = FM.FindTheme(arg)
+		if t then ApplyTheme(t) end
+		Print(string.format(L.MSG_THEME, CurrentTheme() or L.OPT_THEME_CUSTOM))
+		if not t then
+			local names = {}
+			for i, theme in ipairs(FM.THEMES) do names[i] = theme.name end
+			Print(string.format(L.MSG_THEME_LIST, table.concat(names, ", ")))
+			return
+		end
 	elseif cmd == "lang" then
 		if arg == "" then
 			Print(string.format(L.MSG_LANG, db.locale or ("auto (" .. GetLocale() .. ")")))
