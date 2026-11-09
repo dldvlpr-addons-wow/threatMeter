@@ -416,7 +416,7 @@ copyFrame.box.text = "  " .. exported .. "\n"; copyFrame.importButton.scripts.On
 assert(db.warnPct ~= 42 and db.windows[1].barColor.b == 0.3 and #db.windows == 2 and not copyFrame.shown and db.forbidden, "import appliqué")
 db.windows[1].barColor = nil
 w1.menuButton.scripts.OnClick(w1.menuButton)
-Call("Remise à zéro"); assert(calls.reset == 1 and db.windows[2].view == "current")
+Call("Remise à zéro"); assert(calls.reset == 1 and db.windows[2].view == "overall", "Reset garde la vue choisie au menu")
 -- Affichage DPS : dégâts, débit seul. Colonnes, « ma barre seulement », sans titre et gros chiffre propres à la fenêtre.
 w1.menuButton.scripts.OnClick(w1.menuButton); Call("Nouvelle fenêtre")
 local w3 = ForeverMeterFrame3

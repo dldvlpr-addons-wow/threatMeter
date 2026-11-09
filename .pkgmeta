@@ -6,6 +6,7 @@ ignore:
   - "*.zip"
   - wiki
   - STORE.md
+  - DESCRIPTION.md
   - tickets
 
 manual-changelog:
