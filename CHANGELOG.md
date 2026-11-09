@@ -1,5 +1,10 @@
 # ForeverMeter
 
+## 1.17.1
+
+### Fixed
+- Reset now only clears the numbers and keeps your Menu settings (Overall stays on Overall).
+
 ## 1.17.0
 
 ### New

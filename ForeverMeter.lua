@@ -1436,7 +1436,11 @@ local openOptionsAfterCombat = false
 
 local function ResetData()
 	if DamageMeter and DamageMeter.ResetAllCombatSessions then DamageMeter.ResetAllCombatSessions() end
-	for i = 1, #db.windows do SelectView(windows[i], "current") end
+	-- Seul un sessionID disparaît avec les données : « current » et « overall » choisis au menu restent.
+	for i = 1, #db.windows do
+		local win = windows[i]
+		SelectView(win, type(win.cfg.view) == "number" and "current" or win.cfg.view)
+	end
 	wipe(threatSamples)
 	Refresh()
 end
