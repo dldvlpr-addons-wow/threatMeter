@@ -310,10 +310,37 @@ end
 -- Statut UnitThreatSituation -> remplissage de barre, faute de pourcentage lisible.
 FM.STATUS_PCT = { [0] = 25, 50, 75, 100 }
 
-function FM.ComputeTps(previous, value, now)
-	if not previous or now <= previous.t then return 0 end
-	local tps = (value - previous.v) / (now - previous.t)
-	return tps > 0 and tps or 0
+-- Débit de menace glissant. La menace serveur ne change qu'environ une fois par seconde, bien moins souvent que
+-- le rafraîchissement : `samples` ({ t = {}, v = {} }) ne garde que les instants où la valeur a changé, et le débit
+-- se mesure entre ces instants, sur THREAT_WINDOW secondes. Rappelé au même `now` (2e fenêtre) : même résultat.
+FM.THREAT_WINDOW = 10
+FM.THREAT_STALE = 3.5 -- sans nouvelle valeur depuis ce délai, le débit décroît (couvre une cadence de 3 s : tir auto, DoT)
+function FM.ThreatRebase(samples, value, now, unaligned)
+	local t, v = samples.t, samples.v
+	for i = #t, 1, -1 do t[i], v[i] = nil, nil end
+	t[1], v[1] = now, value
+	samples.unaligned = unaligned
+	return 0
+end
+function FM.ThreatRate(samples, value, now)
+	local t, v = samples.t, samples.v
+	local n = #t
+	-- Premier relevé : pris entre deux mises à jour serveur, ce n'est pas un instant de changement (sinon faux pic).
+	if n == 0 then return FM.ThreatRebase(samples, value, now, true) end
+	-- Menace réduite (Disparition, effacement) ou reprise après une pause plus longue que la fenêtre : nouvelle base.
+	if value < v[n] or (value > v[n] and (samples.unaligned or now - t[n] > FM.THREAT_WINDOW)) then
+		return FM.ThreatRebase(samples, value, now, false)
+	end
+	if value > v[n] then n = n + 1; t[n], v[n] = now, value end
+	if now - t[n] > FM.THREAT_WINDOW then return 0 end -- plus rien depuis la durée de la fenêtre : inactif
+	-- Base : le dernier relevé à au moins THREAT_WINDOW secondes, les plus anciens sont retirés.
+	while n > 2 and t[2] <= now - FM.THREAT_WINDOW do
+		table.remove(t, 1); table.remove(v, 1); n = n - 1
+	end
+	local last = math.max(t[n], now - FM.THREAT_STALE)
+	local span = last - t[1]
+	if span <= 0 then return 0 end
+	return (v[n] - v[1]) / span
 end
 
 -- Derniers événements d'un recap de mort (C_DeathRecap.GetRecapEvents), affichés du plus ancien au plus récent.
@@ -839,14 +866,9 @@ local function AddThreatRow(u, enemy, now)
 		value = nil
 	else
 		value = value or 0
-		-- Deux fenêtres de menace lisent la même unité au même GetTime() : le débit du premier passage est repris.
-		local sample = threatSamples[guid]
-		if sample and sample.t == now then
-			tps = sample.tps
-		else
-			tps = FM.ComputeTps(sample, value, now)
-			if sample then sample.v, sample.t, sample.tps = value, now, tps else threatSamples[guid] = { v = value, t = now, tps = tps } end
-		end
+		local samples = threatSamples[guid]
+		if not samples then samples = { t = {}, v = {} }; threatSamples[guid] = samples end
+		tps = FM.ThreatRate(samples, value, now)
 	end
 	local n = #threatList + 1
 	local row = threatRows[n] or {}

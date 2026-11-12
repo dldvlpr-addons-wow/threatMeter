@@ -49,7 +49,20 @@ assert(FM.ShouldWarn({ tanking = false, pct = 92 }, 90) and not FM.ShouldWarn({ 
 assert(FM.ShouldWarn({ tanking = false, status = 1, pct = FM.STATUS_PCT[1] }, 90))
 assert(not FM.ShouldWarn({ tanking = false, status = 0, pct = FM.STATUS_PCT[0] }, 10))
 assert(not FM.ShouldWarn({ tanking = true, status = 2, pct = FM.STATUS_PCT[2] }, 10))
-assert(FM.ComputeTps({ v = 100, t = 10 }, 300, 12) == 100 and FM.ComputeTps({ v = 300, t = 10 }, 100, 12) == 0)
+do -- débit de menace : stable entre deux mises à jour serveur, fenêtre glissante, base remise sur une baisse
+	local s = { t = {}, v = {} }
+	assert(FM.ThreatRate(s, 1000, 0) == 0)
+	assert(FM.ThreatRate(s, 1000, 0.6) == 0)           -- pas encore de nouvelle valeur
+	assert(FM.ThreatRate(s, 1100, 1) == 0)             -- 1re hausse : sert de base (1er relevé pris entre deux mises à jour)
+	assert(FM.ThreatRate(s, 1200, 2) == 100)
+	assert(FM.ThreatRate(s, 1200, 2.8) == 100)         -- rafraîchi sans nouvelle valeur : pas de chute
+	assert(FM.ThreatRate(s, 1200, 2.8) == 100)         -- 2e fenêtre au même instant
+	assert(FM.ThreatRate(s, 1200, 6) == 100 / 1.5)     -- plus rien depuis THREAT_STALE : le débit décroît
+	assert(FM.ThreatRate(s, 1200, 13) == 0)            -- plus rien depuis THREAT_WINDOW : inactif
+	for sec = 14, 29 do FM.ThreatRate(s, 1200 + (sec - 13) * 50, sec) end -- reprise : nouvelle base, pas de D/pause
+	assert(FM.ThreatRate(s, 2050, 30) == 50 and #s.t <= 12) -- anciens relevés retirés
+	assert(FM.ThreatRate(s, 500, 31) == 0 and #s.t == 1) -- menace réduite : nouvelle base
+end
 
 -- Recap de mort : derniers événements, du plus ancien au plus récent, temps relatif au dernier coup.
 local recap = FM.RecapLines({

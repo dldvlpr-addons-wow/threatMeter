@@ -1,5 +1,11 @@
 # ForeverMeter
 
+## 1.17.2
+
+### Fixed
+- Threat per second no longer stays at 0: it is now measured over the last 10 seconds of threat changes.
+  No more drops between two threat updates, and no false spike after a target change.
+
 ## 1.17.1
 
 ### Fixed

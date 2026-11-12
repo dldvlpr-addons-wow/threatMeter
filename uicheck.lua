@@ -199,9 +199,11 @@ assert(db.windows[1].mode == "damage" and w1.title.text:find("Dégâts"), w1.tit
 slash("mode threat")
 assert(w1.title.text:find("Menace") and w1.bars[1].left.text == "> Moi", w1.title.text .. " / " .. tostring(w1.bars[1].left.text))
 -- Deux fenêtres de menace : même débit dans les deux (même GetTime() dans un tour)
+Fire("PLAYER_TARGET_CHANGED") -- relevés des tours précédents (horloge os.clock) écartés
 testClock, testThreat = 100, 1000
 ForeverMeterFrame2.cfg.mode = "threat"; Tick()
-testClock, testThreat = 101, 1500; Tick()
+testClock, testThreat = 101, 1500; Tick() -- 1re hausse : base
+testClock, testThreat = 102, 2000; Tick()
 assert(w1.bars[1].right.text:find("500/s") and ForeverMeterFrame2.bars[1].right.text == w1.bars[1].right.text, w1.bars[1].right.text .. " / " .. ForeverMeterFrame2.bars[1].right.text)
 -- Changement de cible : pas de débit calculé entre la menace sur l'ancienne cible et la nouvelle
 Fire("PLAYER_TARGET_CHANGED"); testClock, testThreat = 102, 5000; Tick()
