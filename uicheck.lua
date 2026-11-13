@@ -48,6 +48,8 @@ local SECRET = { secret = true } -- valeur secrète simulée, reconnue par issec
 local testClock, testThreat, testTanking, sounds = nil, nil, true, 0 -- forcés par le test des deux fenêtres de menace (GetTime et la menace sont des locales de l'addon)
 GetTime = function() return testClock or os.clock() end
 PlaySound = function() sounds = sounds + 1 end
+local errorsReported = 0 -- erreurs de rendu remontées au gestionnaire du jeu
+geterrorhandler = function() return function() errorsReported = errorsReported + 1 end end
 date = os.date
 wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 unpack = unpack or table.unpack
@@ -55,8 +57,8 @@ UnitGUID = function(u) return "Player-" .. u end
 UnitName = function(u) return u == "player" and "Moi" or u end
 UnitClass = function() return "Guerrier", "WARRIOR" end
 UnitExists = function(u) return u == "player" or u == "target" or u == "party1" end
-local testCombat = false
-UnitAffectingCombat = function() return testCombat end
+local testCombat, testTargetCombat = false, nil -- testTargetCombat : combat de la cible seule (nil = comme le joueur)
+UnitAffectingCombat = function(u) if u == "target" and testTargetCombat ~= nil then return testTargetCombat end return testCombat end
 InCombatLockdown = function() return testCombat end
 UnitCanAttack = function() return true end
 UnitIsDead = function() return false end
@@ -216,6 +218,19 @@ assert(sounds == 2, "alerte rejouée sur la nouvelle cible : " .. sounds)
 -- Autre addon qui alerte déjà (FM.externalWarning) : pas de son ForeverMeter
 ForeverMeter.externalWarning = true; Fire("PLAYER_TARGET_CHANGED"); Tick()
 assert(sounds == 2, "alerte externe : son coupé"); ForeverMeter.externalWarning = nil
+-- Gros chiffre en erreur : l'alerte joue quand même ; titre marqué « (!) » jusqu'au rendu suivant réussi.
+do
+	local realSetText = w1.big.SetText
+	w1.cfg.bigNumber, ForeverMeterFrame2.cfg.mode = true, "damage" -- w1 seule fenêtre de menace : le son vient d'elle
+	w1.big.SetText = function(self, text) if text ~= "" then error("gros chiffre") end return realSetText(self, text) end
+	sounds, errorsReported = 0, 0; Fire("PLAYER_TARGET_CHANGED"); Tick()
+	assert(sounds == 1 and errorsReported == 1 and w1.title.text:find("(!)", 1, true), "alerte malgré l'erreur : " .. sounds .. " / " .. w1.title.text)
+	-- Titre secret (nom d'ennemi) : la marque seule remplace le titre.
+	secretLine = "Menace"; Tick(); secretLine = nil
+	assert(w1.title.text == " |cffff4040(!)|r", "titre secret marqué : " .. tostring(w1.title.text))
+	w1.big.SetText = realSetText; w1.cfg.bigNumber, ForeverMeterFrame2.cfg.mode = nil, "threat"; Tick()
+	assert(not w1.title.text:find("(!)", 1, true), "titre rétabli : " .. w1.title.text)
+end
 testClock, testThreat, testTanking = nil, nil, true
 -- Cible boss : barres en statut seul, sans chiffres ; alerte au statut 1 ; « indisponible » si le statut est secret aussi.
 testBoss, sounds = true, 0; Fire("PLAYER_TARGET_CHANGED"); Tick()
@@ -239,6 +254,48 @@ testBoss, testStatus.player = nil, 3
 -- Tri : nom secret, pas de comparaison de chaîne
 local sorted = ForeverMeter.SortThreat({ { name = SECRET, tanking = false, pct = 50 }, { name = "Bob", tanking = false, pct = 50 }, { name = SECRET, tanking = true, pct = 100 } })
 assert(sorted[1].tanking)
+-- Menace hors combat : figée ; en combat : suivie ; un dernier tour à la sortie, puis figée de nouveau.
+do
+	local OnUpdate, w2 = eventsFrame.scripts.OnUpdate, ForeverMeterFrame2
+	testClock, testThreat = 299, 500; Tick()
+	local afterFull = w1.bars[1].right.text
+	testClock, testThreat = 300, 1000; OnUpdate(eventsFrame, 1)
+	assert(w1.bars[1].right.text ~= afterFull, "après un rendu complet : un tour menace (la cible a pu quitter le combat)")
+	local frozen = w1.bars[1].right.text
+	testClock, testThreat = 301, 3000; OnUpdate(eventsFrame, 1)
+	assert(w1.bars[1].right.text == frozen and w2.bars[1].right.text == frozen, "hors combat : figée")
+	testCombat = true; OnUpdate(eventsFrame, 1)
+	local live = w1.bars[1].right.text
+	assert(live ~= frozen, "en combat : suivie")
+	testCombat = false; testClock, testThreat = 302, 9000; OnUpdate(eventsFrame, 1)
+	local last = w1.bars[1].right.text
+	assert(last ~= live, "sortie de combat : dernier tour")
+	testClock, testThreat = 303, 20000; OnUpdate(eventsFrame, 1)
+	assert(w1.bars[1].right.text == last, "après le dernier tour : figée")
+	-- Cible seule en combat, puis combat de la cible secret : suivie dans les deux cas.
+	testTargetCombat = true; testClock, testThreat = 304, 40000; OnUpdate(eventsFrame, 1)
+	local targetOnly = w1.bars[1].right.text
+	assert(targetOnly ~= last, "cible en combat : suivie")
+	testTargetCombat = SECRET; testClock, testThreat = 305, 80000; OnUpdate(eventsFrame, 1)
+	assert(w1.bars[1].right.text ~= targetOnly, "combat de la cible secret : suivie")
+	testTargetCombat = false; OnUpdate(eventsFrame, 1) -- dernier tour
+	testClock, testThreat = nil, nil
+end
+-- Rendu isolé : une fenêtre en erreur ne bloque pas la suivante ; erreur signalée une fois, puis effacée au retour.
+do
+	local w2 = ForeverMeterFrame2
+	w1.cfg.mode, w2.cfg.mode = "damage", "threat"; Tick()
+	assert(w1.bars[1].source, "rendu dégâts : source posée")
+	session.combatSources[2].totalAmount = SECRET -- ligne 1 lisible, ligne 2 secrète : état inattendu, erreur de rendu
+	errorsReported, w2.bars[1].left.text = 0, nil; Tick()
+	assert(errorsReported == 1 and w1.renderError and w2.bars[1].left.text == "> Moi", "erreur isolée : " .. errorsReported)
+	assert(w1.title.text:find("(!)", 1, true) and not w1.bars[1].shown and not w1.bars[1].source, "fenêtre en erreur : vidée et marquée")
+	Tick(); assert(errorsReported == 1, "signalée une seule fois : " .. errorsReported)
+	-- Sans nouvel événement : le rendu en échec reste à refaire, le tour suivant le rétablit.
+	session.combatSources[2].totalAmount = 1000; eventsFrame.scripts.OnUpdate(eventsFrame, 1)
+	assert(not w1.renderError and w1.bars[2].left.text == "2. Bob" and w1.bars[1].shown and not w1.title.text:find("(!)", 1, true), "rendu rétabli")
+	w1.cfg.mode = "threat"
+end
 ForeverMeterFrame2.cfg.mode = "damage"
 slash("mode deaths")
 assert(w1.bars[1].right.text == "2.0k · 0:42", w1.bars[1].right.text)
@@ -722,6 +779,10 @@ do
 	local full = w1:GetHeight()
 	w1.minimizeButton.scripts.OnClick(); Tick()
 	assert(db.windows[1].minimized and w1:GetHeight() == 18 and w1.rows == 0 and not w1.grip.shown, "réduite : " .. tostring(w1:GetHeight()))
+	-- Réduite : titre seul redessiné, le reste du rendu n'est pas parcouru (la ligne secrète ne lève rien).
+	session.combatSources[2].totalAmount, errorsReported, w1.title.text = SECRET, 0, nil; Tick()
+	assert(w1.title.text and errorsReported == 0, "réduite : titre seul")
+	session.combatSources[2].totalAmount = 1000
 	db.windows[1].noHeader = true; slash("rows 5"); assert(w1:GetHeight() > 18 and w1.grip.shown, "sans titre : réduction ignorée")
 	db.windows[1].noHeader = nil; slash("rows 5")
 	w1.minimizeButton.scripts.OnClick(); Tick()

@@ -25,6 +25,12 @@ When there is no room, it opens near the center of the screen.
 - **Minimize**: only the title bar stays. Also the button left of the gear in the title bar. No effect without a title bar.
 - In combat, totals are abbreviated by the game (`12K`).
 
+## Bar colour
+- Window menu → **Bar colour**: class colour (default) or a colour from the colour picker. Each window keeps its own.
+
+## Enemy damage taken filter
+- In an **Enemy damage taken** window, the window menu filters the enemies: all enemies, **Elites and bosses**, or **Bosses only**.
+
 ## Snapping
 - Drop a window against the edge of another one to snap it. It then follows that window's moves and size.
 - Drag it away to detach it.
@@ -42,7 +48,7 @@ When there is no room, it opens near the center of the screen.
 - Until you move it, it opens on a free side of its window.
 - Shift-click another bar of the same window to compare both players spell by spell
   (`12.3k | 9.8k (+26%)`). Shift-click it again to stop. Out of combat only.
-- Right-click its title to send that player's top 5 spells to raid, party or say (the compared lines when a comparison is open). Out of combat only.
+- Right-click its title to send that player's top 5 spells to the group chat: instance chat, raid, party, or say inside an instance (the compared lines when a comparison is open). Out of combat only.
 
 ## Locking
 - Click the padlock in the title bar to lock the position and size of that window only.

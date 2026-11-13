@@ -40,7 +40,7 @@ The game blocks the options panel in combat. ForeverMeter opens it as soon as co
 
 ## `/fm report` sends nothing
 Alone and outside an instance, the game forbids addons to use say. The report is shown only to you.
-In a group it goes to party or raid, and in an instance to say.
+Without a channel, it goes to instance chat in an instance group, otherwise to raid, then party, then say inside an instance.
 
 ## A value looks wrong
 Type `/fm debug` and include the output when you report the issue.

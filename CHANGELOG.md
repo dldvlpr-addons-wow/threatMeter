@@ -1,5 +1,15 @@
 # ForeverMeter
 
+## 1.17.3
+
+### Changed
+- **Lighter in the open world**: threat is no longer polled while neither you nor your target is in combat,
+  and minimized windows skip drawing.
+
+### Fixed
+- One window that fails to draw no longer stops the others from updating. It is emptied and its title shows (!) until it draws again.
+- The threat warning sound still plays when the big number fails to draw.
+
 ## 1.17.2
 
 ### Fixed

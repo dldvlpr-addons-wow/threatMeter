@@ -11,15 +11,16 @@ l.1213-1226).
 
 ## Analysis of ForeverMeter
 - `secret` comes from the data, not from the combat state: `issecretvalue(list[1].totalAmount)`
-  (`ForeverMeter.lua:975`). This avoids the "restriction 0 but secret" trap.
+  (`ForeverMeter.lua:1234`). This avoids the "restriction 0 but secret" trap.
 - Only the **first row** and only **`totalAmount`** are checked. When `secret` is false, the code calls
   the following without any guard:
-  - `table.sort` on every `totalAmount` (`Sources`, l.546-553);
-  - `amountPerSecond == 0` and `totalAmount / d` (`PerSecond`, l.502-510);
-  - `sessionTotal > 0` and `total / sessionTotal` (`FM.FormatRow`, l.216-218);
-  - the same pattern in `SortedSpells` (l.556-563), which tests only `spells[1]`.
-- `Refresh()` (l.1065-1074) is not under `pcall`. With a snapshot where row 1 is readable but another
-  field is secret, the error repeats on every refresh (0.2 s) until the data becomes consistent.
+  - `table.sort` on every `totalAmount` (`Sources`, l.758-765);
+  - `amountPerSecond == 0` and `totalAmount / d` (`PerSecond`, l.714-722);
+  - `sessionTotal > 0` and `total / sessionTotal` (`FM.FormatRow`, l.253);
+  - the same pattern in `SortedSpells` (l.775-782), which tests only `spells[1]`.
+- Each window renders under `pcall` (`Guarded`, l.1346). With a snapshot where row 1 is readable but
+  another field is secret, the broken window is emptied, its title shows (!), and the error is reported
+  once; the other windows keep updating, and the window draws again as soon as the data is consistent.
 
 ## Real need
 Not observed so far: no error report of this kind. Nothing proves that a `C_DamageMeter` snapshot can

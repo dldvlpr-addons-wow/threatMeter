@@ -1248,6 +1248,8 @@ local function RenderMeter(win)
 		label = SessionLabel(win, session)
 	end
 	SetTitle(win.title, (IsDps(win) and L.MENU_DPS or FM.MODE_INFO[mode].label) .. " · " .. label)
+	-- Réduite : titre seul, ni barres ni gros chiffre à remplir.
+	if Minimized(win.cfg) then return end
 	local list = VisibleSources(win, session)
 	local maxAmount = session and session.maxAmount or 1
 	local sessionTotal = session and session.totalAmount
@@ -1317,8 +1319,8 @@ local function RenderThreat(win)
 	end
 	local mine
 	for _, row in ipairs(list) do if row.isPlayer then mine = row; break end end
-	if win.cfg.bigNumber then win.big:SetText(mine and (mine.status and StatusLabel(mine) or string.format("%d%%", mine.pct)) or "") end
-	-- Alerte sur sa propre ligne, même sans barre affichée (gros chiffre).
+	-- Alerte sur sa propre ligne, même sans barre affichée (gros chiffre). Avant tout affichage :
+	-- une erreur de rendu (gros chiffre, barres) ne coupe pas le son.
 	local warn = mine and FM.ShouldWarn(mine, db.warnPct) or false
 	if warn then
 		warnRearmAt = nil
@@ -1333,6 +1335,7 @@ local function RenderThreat(win)
 		warnRearmAt = warnRearmAt or now + WARN_REARM_DELAY
 		if now >= warnRearmAt then warnedGuid = nil end
 	end
+	if win.cfg.bigNumber then win.big:SetText(mine and (mine.status and StatusLabel(mine) or string.format("%d%%", mine.pct)) or "") end
 	for i = 1, win.rows do
 		local bar, row = win.bars[i], list[i]
 		if win.cfg.onlyMe then row = mine end
@@ -1352,15 +1355,71 @@ local function RenderThreat(win)
 	end
 end
 
-local function Refresh()
-	needsRedraw = false
-	for i = 1, #db.windows do
-		local win = windows[i]
-		if win:IsShown() then
-			if win.cfg.mode == "threat" then RenderThreat(win) else RenderMeter(win) end
+-- Rendu isolé : une erreur (valeur secrète inattendue) ne bloque ni les autres fenêtres ni les tours suivants.
+-- Signalée une fois au gestionnaire d'erreurs du jeu, puis de nouveau seulement si le message change
+-- ou si elle revient après un rendu réussi. En échec, la fenêtre est vidée (pas de barre à moitié à jour,
+-- ni de source périmée sous le clic) et son titre marqué « (!) » jusqu'au prochain rendu réussi.
+-- Bloc do : le fichier est au plafond Lua de 200 locales actives, les aides restent hors du niveau fichier.
+-- Refresh(true) : fenêtres de menace seules, tant que le joueur ou sa cible est en combat, plus un dernier
+-- tour à la sortie pour vider les barres (cible morte, combat fini). Sinon tout est redessiné.
+local Refresh
+do
+	local RENDER_ERROR_MARK = " |cffff4040(!)|r"
+	local function Guarded(frame, render, arg)
+		local ok, err = pcall(render, arg)
+		if ok then
+			frame.renderError = nil
+			return true
 		end
+		for _, bar in ipairs(frame.bars) do
+			bar.source, bar.sourceGuid = nil, nil
+			bar:Hide()
+		end
+		if frame.big then frame.big:SetText("") end
+		-- Titre secret (nom d'ennemi) : la marque seule, réécrite par SetTitle au rendu réussi suivant.
+		local title = frame.title:GetText()
+		if title == nil or issecretvalue(title) then
+			frame.title:SetText(RENDER_ERROR_MARK)
+		elseif not title:find(RENDER_ERROR_MARK, 1, true) then
+			frame.title:SetText(title .. RENDER_ERROR_MARK)
+		end
+		-- Signalement en dernier : un gestionnaire d'erreurs qui lève lui-même laisse la fenêtre déjà vidée.
+		if err ~= frame.renderError then
+			frame.renderError = err
+			geterrorhandler()(err)
+		end
+		return false
 	end
-	RenderDetail()
+
+	local function RenderWindow(win)
+		if win.cfg.mode == "threat" then RenderThreat(win) else RenderMeter(win) end
+	end
+
+	local threatWasActive = false
+
+	function Refresh(threatOnly)
+		if threatOnly then
+			-- Une valeur secrète compte comme « en combat », sans jamais être testée.
+			local target = UnitAffectingCombat("target")
+			local active = UnitAffectingCombat("player") or issecretvalue(target) or target or false
+			if not active and not threatWasActive then return end
+			local ok = true
+			for i = 1, #db.windows do
+				local win = windows[i]
+				if win:IsShown() and win.cfg.mode == "threat" then ok = Guarded(win, RenderThreat, win) and ok end
+			end
+			threatWasActive = active or not ok -- dernier tour en échec : retenté au tour suivant
+			return
+		end
+		local ok = true
+		for i = 1, #db.windows do
+			local win = windows[i]
+			if win:IsShown() then ok = Guarded(win, RenderWindow, win) and ok end
+		end
+		ok = Guarded(detail, RenderDetail) and ok
+		needsRedraw = not ok -- rendu en échec (secrets résiduels après le combat) : retenté au tour suivant
+		threatWasActive = true -- la cible a pu quitter le combat depuis : un tour menace suit
+	end
 end
 
 ------------------------------------------------------------------------
@@ -2090,16 +2149,9 @@ events:SetScript("OnUpdate", function(_, elapsed)
 	if not db or elapsedSince < db.refresh then return end
 	-- Compteur redessiné sur événement seulement, comme celui de Blizzard : relu en continu, le /s du client
 	-- baisse après la mort de la cible (total divisé par une durée qui court jusqu'à la fin du combat).
-	-- La menace suit la cible, elle est redessinée tant qu'une fenêtre de menace est visible.
+	-- La menace suit la cible, redessinée tant que le joueur ou sa cible est en combat (voir Refresh).
 	elapsedSince = 0
-	if needsRedraw or GetTime() < pollUntil then
-		Refresh()
-		return
-	end
-	for i = 1, #db.windows do
-		local win = windows[i]
-		if win:IsShown() and win.cfg.mode == "threat" then RenderThreat(win) end
-	end
+	Refresh(not (needsRedraw or GetTime() < pollUntil))
 end)
 
 Register(events, "ADDON_LOADED")
