@@ -101,6 +101,16 @@ local DEFAULTS = {
 	barTexture = "blizzard",              -- nom dans FM.BAR_TEXTURES
 	barFont = nil,                        -- nom dans FM.BAR_FONTS, nil = police du client (gère cyrillique et CJK)
 	fontSize = nil,                       -- nil = taille de GameFontHighlightSmall
+	-- Habillage : couleurs { r, g, b } remplacées en bloc, jamais modifiées sur place (DEFAULTS est partagée par InitDb).
+	bgColor = { r = 0, g = 0, b = 0 },    -- fond des fenêtres, opacité bgAlpha
+	borderColor = { r = 0, g = 0, b = 0 },
+	borderSize = 1,                       -- 0 = sans bordure
+	headerColor = { r = 0.1, g = 0.1, b = 0.1 }, -- barre de titre
+	titleColor = { r = 1, g = 0.82, b = 0 },  -- texte du titre (doré de GameFontNormalSmall)
+	barBgColor = { r = 0.15, g = 0.15, b = 0.15 }, -- fond des barres
+	barSpacing = 1,                       -- px entre deux barres
+	textOutline = false,                  -- contour du texte des barres
+	showIcons = true,                     -- icône de classe ou de sort devant le nom
 	point = { "CENTER", nil, "CENTER", 300, 0 }, -- position de la première fenêtre
 }
 
@@ -139,14 +149,34 @@ FM.BAR_FONTS = {
 	{ "skurri-cyr", "Fonts\\SKURRI_CYR.TTF" },
 }
 
--- Thèmes du panneau et de /fm theme : réglages d'apparence posés d'un coup. barFont ou fontSize absent = défaut du client.
+-- Thèmes du panneau et de /fm theme : réglages d'apparence posés d'un coup. Clé absente = valeur de DEFAULTS
+-- (barFont ou fontSize absent = défaut du client).
 FM.THEMES = {
 	{ name = "classic", barTexture = "blizzard", rowHeight = 16, bgAlpha = 0.6 },
 	{ name = "flat", barTexture = "flat", barFont = "fira-sans-condensed", fontSize = 11, rowHeight = 18, bgAlpha = 0.8 },
 	{ name = "glass", barTexture = "glass", barFont = "pt-sans-narrow-bold", fontSize = 12, rowHeight = 20, bgAlpha = 0.4 },
 	{ name = "compact", barTexture = "gradient", fontSize = 9, rowHeight = 12, bgAlpha = 0.5 },
+	{ name = "dark", barTexture = "flat", barFont = "fira-sans-condensed", fontSize = 11, rowHeight = 18, bgAlpha = 0.85,
+		bgColor = { r = 0.05, g = 0.05, b = 0.05 }, borderColor = { r = 0.3, g = 0.3, b = 0.3 },
+		headerColor = { r = 0.16, g = 0.16, b = 0.16 }, titleColor = { r = 0.9, g = 0.9, b = 0.9 },
+		barBgColor = { r = 0.1, g = 0.1, b = 0.1 }, barSpacing = 2 },
+	{ name = "clear", barTexture = "fade", rowHeight = 16, bgAlpha = 0, borderSize = 0,
+		headerColor = { r = 0, g = 0, b = 0 }, barBgColor = { r = 0, g = 0, b = 0 }, barSpacing = 2, textOutline = true },
+	{ name = "bold", barTexture = "flat", barFont = "oswald", fontSize = 12, rowHeight = 20, bgAlpha = 0.9,
+		bgColor = { r = 0.1, g = 0.05, b = 0.15 }, borderColor = { r = 1, g = 0.82, b = 0 }, borderSize = 2,
+		headerColor = { r = 0.45, g = 0.05, b = 0.05 }, titleColor = { r = 1, g = 1, b = 1 },
+		barBgColor = { r = 0.25, g = 0.25, b = 0.25 }, barSpacing = 2, textOutline = true },
+	{ name = "ui", barTexture = "blizzard", fontSize = 10, rowHeight = 18, bgAlpha = 0.8,
+		bgColor = { r = 0.04, g = 0.04, b = 0.1 }, borderColor = { r = 0.6, g = 0.5, b = 0.3 }, borderSize = 2,
+		headerColor = { r = 0.25, g = 0.18, b = 0.08 }, barBgColor = { r = 0.1, g = 0.1, b = 0.12 } },
 }
-FM.THEME_KEYS = { "barTexture", "barFont", "fontSize", "rowHeight", "bgAlpha" }
+FM.THEME_KEYS = { "barTexture", "barFont", "fontSize", "rowHeight", "bgAlpha", "bgColor", "borderColor", "borderSize",
+	"headerColor", "titleColor", "barBgColor", "barSpacing", "textOutline", "showIcons" }
+-- Valeur d'un thème pour une clé : la sienne, sinon celle de DEFAULTS.
+function FM.ThemeValue(t, k)
+	if t[k] == nil then return DEFAULTS[k] end
+	return t[k]
+end
 -- Les polices livrées n'ont pas l'alphabet coréen ni chinois : sur ces clients, un thème garde la police choisie.
 FM.CJK_LOCALES = { koKR = true, zhCN = true, zhTW = true }
 
@@ -181,14 +211,17 @@ function FM.FindTheme(input)
 end
 
 -- Nom du thème dont tous les réglages valent ceux de `settings`, sinon nil. keepFont : police ignorée (client CJK).
--- Tolérance sur les nombres : le curseur d'opacité arrondit par multiples de 0.05 (12 * 0.05 ~= 0.6).
+-- Tolérance sur les nombres : le curseur d'opacité arrondit par multiples de 0.05 (12 * 0.05 ~= 0.6),
+-- le sélecteur de couleur rend des flottants. Couleurs comparées champ par champ.
 function FM.CurrentTheme(settings, keepFont)
+	local function Near(a, b) return type(a) == "number" and type(b) == "number" and math.abs(a - b) < 1e-6 end
 	for _, t in ipairs(FM.THEMES) do
 		local same = true
 		for _, k in ipairs(FM.THEME_KEYS) do
-			local a, b = settings[k], t[k]
-			if not (keepFont and k == "barFont") and a ~= b
-				and not (type(a) == "number" and type(b) == "number" and math.abs(a - b) < 1e-6) then same = false end
+			local a, b = settings[k], FM.ThemeValue(t, k)
+			if type(a) == "table" and type(b) == "table" then
+				if not (Near(a.r, b.r) and Near(a.g, b.g) and Near(a.b, b.b)) then same = false end
+			elseif not (keepFont and k == "barFont") and a ~= b and not Near(a, b) then same = false end
 		end
 		if same then return t.name end
 	end
@@ -462,6 +495,8 @@ FM.BOUNDS = {
 	fontSize = { min = 6, max = 24, step = 1 },
 	rowHeight = { min = 10, max = 40, step = 1 },
 	bgAlpha = { min = 0, max = 1, step = 0.05 },
+	borderSize = { min = 0, max = 3, step = 1 },  -- au-delà, la bordure passe sous les barres (x = 3)
+	barSpacing = { min = 0, max = 6, step = 1 },
 	windows = { min = 1, max = FM.MAX_WINDOWS, step = 1 },
 }
 
@@ -546,6 +581,8 @@ local SETTINGS_FIELDS = {
 	scale = Bounded("scale"), rows = Bounded("rows"), width = Bounded("width"), refresh = Bounded("refresh"),
 	warnPct = Bounded("warnPct"), fontSize = Bounded("fontSize"), rowHeight = Bounded("rowHeight"), bgAlpha = Bounded("bgAlpha"),
 	warnSound = Boolean, showPets = Boolean, autoHide = Boolean, autoReset = Boolean, instanceOnly = Boolean,
+	borderSize = Bounded("borderSize"), barSpacing = Bounded("barSpacing"), textOutline = Boolean, showIcons = Boolean,
+	bgColor = ValidColor, borderColor = ValidColor, headerColor = ValidColor, titleColor = ValidColor, barBgColor = ValidColor,
 	columns = ValidColumns,
 	locale = function(v) return type(v) == "string" and FM.FindLocale(v) == v, v end,
 	barTexture = Name, barFont = Name,
@@ -679,7 +716,7 @@ local function Minimized(cfg) return cfg and cfg.minimized and not cfg.noHeader 
 local function WindowHeight(rows, cfg)
 	if Minimized(cfg) then return HeaderHeight(cfg) end
 	if cfg and cfg.bigNumber then return HeaderHeight(cfg) + BIG_NUMBER_HEIGHT end
-	return HeaderHeight(cfg) + (rows or db.rows) * (db.rowHeight + 1) + 3
+	return HeaderHeight(cfg) + (rows or db.rows) * (db.rowHeight + db.barSpacing) + 3
 end
 
 -- Taille d'une fenêtre : la sienne (poignée de redimensionnement) sinon la taille commune (/fm rows, /fm width).
@@ -929,7 +966,9 @@ local function MakeWindow(name, w, h)
 	f:SetUserPlaced(false)
 	f:HookScript("OnShow", function() needsRedraw = true end)
 	f:EnableMouse(true)
+	-- Aspect par défaut jusqu'au premier FM.SkinFrame (fenêtre de copie : jamais habillée).
 	f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+	f.borderSize = 1
 	f:SetBackdropColor(0, 0, 0, DEFAULTS.bgAlpha)
 	f:SetBackdropBorderColor(0, 0, 0, 1)
 	f.header = CreateFrame("Button", nil, f)
@@ -950,7 +989,27 @@ local function MakeWindow(name, w, h)
 	return f
 end
 
--- Remplissage animé des barres (comme Details) ; nil sur un client sans l'option : saut direct.
+-- Habillage d'une fenêtre faite par MakeWindow : fond, bordure, barre de titre. alpha : opacité du fond.
+-- SetBackdrop seulement quand l'épaisseur change : il recrée les textures du cadre.
+function FM.SkinFrame(f, alpha)
+	local size = db.borderSize
+	if f.borderSize ~= size then
+		f.borderSize = size
+		f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = size > 0 and "Interface\\Buttons\\WHITE8x8" or nil, edgeSize = size })
+		-- Barre de titre à l'intérieur de la bordure, sinon elle la recouvre en haut.
+		f.header:ClearAllPoints()
+		f.header:SetPoint("TOPLEFT", size, -size)
+		f.header:SetPoint("TOPRIGHT", -size, -size)
+		f.header:SetHeight(18 - size)
+	end
+	local bg, border, header, title = db.bgColor, db.borderColor, db.headerColor, db.titleColor
+	f:SetBackdropColor(bg.r, bg.g, bg.b, alpha)
+	f:SetBackdropBorderColor(border.r, border.g, border.b, 1)
+	f.header.bg:SetColorTexture(header.r, header.g, header.b, 0.9)
+	f.title:SetTextColor(title.r, title.g, title.b)
+end
+
+-- Remplissage animé des barres ; nil sur un client sans l'option : saut direct.
 local SMOOTH_FILL = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.ExponentialEaseOut
 
 local function MakeBar(parent, i)
@@ -960,7 +1019,6 @@ local function MakeBar(parent, i)
 	bar:EnableMouse(true)
 	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
 	bar.bg:SetAllPoints()
-	bar.bg:SetColorTexture(0.15, 0.15, 0.15, 0.6)
 	bar.icon = bar:CreateTexture(nil, "ARTWORK")
 	bar.icon:SetPoint("LEFT", 1, 0)
 	bar.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
@@ -998,26 +1056,30 @@ local function LayoutBars(f, rows, width)
 		local bar = f.bars[i] or MakeBar(f, i)
 		bar:SetSize(width - 6, db.rowHeight)
 		bar.icon:SetSize(db.rowHeight - 2, db.rowHeight - 2)
+		-- Icône masquée : le nom part du bord de la barre (SetPoint remplace l'ancre LEFT existante).
+		bar.icon:SetShown(db.showIcons)
+		if db.showIcons then bar.left:SetPoint("LEFT", bar.icon, "RIGHT", 3, 0) else bar.left:SetPoint("LEFT", 3, 0) end
 		bar:SetStatusBarTexture(texture)
+		bar.bg:SetColorTexture(db.barBgColor.r, db.barBgColor.g, db.barBgColor.b, 0.6)
 		for _, text in ipairs({ bar.left, bar.right }) do
 			text:SetFontObject(GameFontHighlightSmall)
-			if font or db.fontSize then
-				-- Comme Details : SetFont sans lire son retour (pas fiable d'un client à l'autre), ombre gardée.
+			if font or db.fontSize or db.textOutline then
+				-- SetFont sans lire son retour (pas fiable d'un client à l'autre), ombre gardée.
 				local defaultFont, defaultSize = text:GetFont()
-				text:SetFont(font or defaultFont or STANDARD_TEXT_FONT, db.fontSize or defaultSize or 10, "")
+				text:SetFont(font or defaultFont or STANDARD_TEXT_FONT, db.fontSize or defaultSize or 10, db.textOutline and "OUTLINE" or "")
 			end
 			-- Un FontString ne se redessine qu'à un texte différent : vidé ici, Refresh() le réécrit avec la police.
 			text:SetText("")
 		end
 		bar:ClearAllPoints()
-		bar:SetPoint("TOPLEFT", 3, -HeaderHeight(f.cfg) - (i - 1) * (db.rowHeight + 1))
+		bar:SetPoint("TOPLEFT", 3, -HeaderHeight(f.cfg) - (i - 1) * (db.rowHeight + db.barSpacing))
 		if i > rows then bar:Hide() end
 	end
 end
 
 local function LayoutWindow(f, rows, width)
 	f:SetScale(db.scale)
-	f:SetBackdropColor(0, 0, 0, db.bgAlpha)
+	FM.SkinFrame(f, db.bgAlpha)
 	f:SetWidth(width)
 	f:SetHeight(WindowHeight(rows, f.cfg))
 	if f.cfg then
@@ -1087,6 +1149,7 @@ local function AnchorDetail()
 end
 
 local function Layout()
+	if ForeverMeterBreakdownFrame and ForeverMeterBreakdownFrame:IsShown() then FM.SkinFrame(ForeverMeterBreakdownFrame, 0.9) end
 	for i = 1, #db.windows do
 		local f = windows[i]
 		LayoutWindow(f, ShownRows(f), Width(f))
@@ -1427,10 +1490,15 @@ end
 ------------------------------------------------------------------------
 -- Événements lisibles d'un recap de mort, ou nil et le message à afficher (tooltip et report en chat).
 local function RecapEvents(recapID)
-	local ok, has = pcall(function()
+	local ok, events = pcall(function()
 		return DeathRecap and recapID and not issecretvalue(recapID) and recapID ~= -1 and DeathRecap.HasRecapEvents(recapID)
+			and DeathRecap.GetRecapEvents(recapID) or nil
 	end)
-	local events = ok and has and DeathRecap.GetRecapEvents(recapID) or nil
+	-- Erreur du client signalée une fois par message (l'onglet Mort relit le recap chaque seconde), le recap reste absent.
+	if not ok then
+		if events ~= NS.lastRecapError then NS.lastRecapError = events; geterrorhandler()(events) end
+		events = nil
+	end
 	if not events or #events == 0 then return nil, L.TIP_NO_RECAP end
 	-- RecapLines compare et formate ces champs : un seul secret et le recap n'est pas lisible.
 	for _, e in ipairs(events) do
@@ -1438,6 +1506,14 @@ local function RecapEvents(recapID)
 	end
 	return events
 end
+
+-- Lectures du compteur pour CombatBreakdown.lua (chargé après). Champ de NS : aucune locale de fichier en plus.
+NS.Meter = {
+	ReadSource = ReadSource, ReadSession = ReadSession, SortedSpells = SortedSpells, PerSecond = PerSecond,
+	SpellLabel = SpellLabel, SpellIcon = SpellIcon, SpellName = GetSpellNameCompat, ClassColor = ClassColor,
+	RecapEvents = RecapEvents, MakeWindow = MakeWindow, SkinFrame = FM.SkinFrame, SessionLabel = SessionLabel, Register = Register,
+	AvailableSessions = AvailableSessions,
+}
 
 local function AddRecapLines(recapID)
 	local events, message = RecapEvents(recapID)
@@ -1786,6 +1862,7 @@ local function ShowEntries(entries, owner)
 	end
 	return true
 end
+NS.Meter.ShowEntries = ShowEntries
 
 -- Le menu se ferme au mouse-down global (Blizzard_Menu/Menu.lua:52-71), avant OnClick : sans garde, un re-clic
 -- sur l'owner le rouvrait. Ni HandlesGlobalMouseEvent ni callback de fermeture : Blizzard les appelle sans
@@ -1936,7 +2013,7 @@ local function NewWindow(i)
 	-- glissement ; seuls les événements de drag (ceux du titre) sont fiables.
 	-- Taille (largeur, hauteur en px) -> largeur et lignes de cette fenêtre.
 	local function SizeToConfig(w, h)
-		return FM.Clamp("width", w + 0.5), FM.Clamp("rows", (h - HeaderHeight(f.cfg) - 3) / (db.rowHeight + 1) + 0.5)
+		return FM.Clamp("width", w + 0.5), FM.Clamp("rows", (h - HeaderHeight(f.cfg) - 3) / (db.rowHeight + db.barSpacing) + 0.5)
 	end
 	-- Relâchement : la taille suivie pendant le glissement est arrondie à un nombre entier de lignes.
 	f.OnResized = function()
@@ -2099,6 +2176,13 @@ end
 -- Valeurs par défaut, migration de l'ancien format (db.mode, db.point) vers db.windows, nettoyage.
 local function InitDb()
 	for k, v in pairs(DEFAULTS) do if db[k] == nil then db[k] = v end end
+	-- Couleurs : le miroir CVar retire les composantes égales au défaut, on les complète.
+	for k, v in pairs(DEFAULTS) do
+		if type(v) == "table" and v.r then
+			if type(db[k]) ~= "table" then db[k] = v
+			elseif db[k] ~= v then for c in pairs(v) do if db[k][c] == nil then db[k][c] = v[c] end end end
+		end
+	end
 	-- Colonnes : table propre à db (jamais celle de DEFAULTS, que les cases à cocher modifieraient), clés manquantes à vrai.
 	if db.columns == DEFAULTS.columns then db.columns = {} end
 	for k, v in pairs(DEFAULTS.columns) do if db.columns[k] == nil then db.columns[k] = v end end
@@ -2252,12 +2336,12 @@ local function SendLines(messages, channel, target)
 end
 
 ReportDeath = function(src, channel, target)
-	local events, message = RecapEvents(src.deathRecapID)
-	if not events then Print(message); return end
+	local recap, message = RecapEvents(src.deathRecapID)
+	if not recap then Print(message); return end
 	-- Lignes du chat sans les noms de créature secrets. Un message encore secret (nom du mort, sort) : le chat
 	-- le refuserait et le groupe recevrait un récap tronqué, tout reste donc en local.
 	local messages = { string.format(L.REPORT_DEATH_HEADER, src.name) }
-	for _, line in ipairs(FM.RecapLines(events, GetSpellNameCompat, nil, true)) do messages[#messages + 1] = line.left .. "  " .. line.right end
+	for _, line in ipairs(FM.RecapLines(recap, GetSpellNameCompat, nil, true)) do messages[#messages + 1] = line.left .. "  " .. line.right end
 	SendLines(messages, channel, target)
 end
 
@@ -2412,7 +2496,10 @@ end
 local function ApplyTheme(t)
 	local keepFont = FM.CJK_LOCALES[GetLocale()]
 	for _, k in ipairs(FM.THEME_KEYS) do
-		if not (keepFont and k == "barFont") then db[k] = t[k] end
+		local v = FM.ThemeValue(t, k)
+		-- Couleur copiée : db ne partage jamais la table d'un thème.
+		if type(v) == "table" then v = { r = v.r, g = v.g, b = v.b } end
+		if not (keepFont and k == "barFont") then db[k] = v end
 	end
 end
 local function CurrentTheme() return FM.CurrentTheme(db, FM.CJK_LOCALES[GetLocale()]) end
@@ -2583,6 +2670,53 @@ do
 		Settings.RegisterAddOnCategory(optionsCategory)
 	elseif InterfaceOptions_AddCategory then
 		InterfaceOptions_AddCategory(p)
+	end
+end
+
+-- Bloc à part : deux locales actives au plus, le fichier frôle le plafond de 200 locales de Lua 5.1.
+do
+	-- Sous-page Habillage : couleurs, bordure, espacement, texte. Un réglage changé ici fait passer le thème à « Custom ».
+	-- Nom de la sous-page fixé à l'enregistrement : langue du client, pas celle choisie ensuite.
+	local skin = CreateFrame("Frame")
+	skin.name, skin.parent = L.OPT_SKIN, "ForeverMeter"
+	skin:Hide()
+	skin:SetScript("OnShow", RefreshOptions)
+	skin.title = skin:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+	skin.title:SetPoint("TOPLEFT", 16, -16)
+	refreshers[#refreshers + 1] = function() skin.title:SetText(L.OPT_SKIN) end
+	-- Libellé + carré de couleur ; clic : sélecteur du client, Annuler remet la couleur d'avant.
+	local function OptionColor(key, y, field)
+		OptionLabel(skin, key, 16, y)
+		local b = CreateFrame("Button", nil, skin, "BackdropTemplate")
+		b:SetSize(40, 18)
+		b:SetPoint("TOPLEFT", 16, y - 18)
+		b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+		b:SetBackdropBorderColor(1, 1, 1, 1)
+		local function Set(c) db[field] = c; ApplyOption() end
+		b:SetScript("OnClick", function()
+			if not (ColorPickerFrame and ColorPickerFrame.SetupColorPickerAndShow) then return end
+			local previous = db[field]
+			ColorPickerFrame:SetupColorPickerAndShow({
+				r = previous.r, g = previous.g, b = previous.b, hasOpacity = false,
+				swatchFunc = function() local r, g, blue = ColorPickerFrame:GetColorRGB(); Set({ r = r, g = g, b = blue }) end,
+				cancelFunc = function() Set(previous) end,
+			})
+		end)
+		refreshers[#refreshers + 1] = function() local c = db[field]; b:SetBackdropColor(c.r, c.g, c.b, 1) end
+	end
+	OptionColor("OPT_BG_COLOR", -56, "bgColor")
+	OptionColor("OPT_BORDER_COLOR", -106, "borderColor")
+	OptionColor("OPT_HEADER_COLOR", -156, "headerColor")
+	OptionColor("OPT_TITLE_COLOR", -206, "titleColor")
+	OptionColor("OPT_BAR_BG_COLOR", -256, "barBgColor")
+	OptionSlider(skin, "OPT_BORDER_SIZE", 300, -56, "borderSize", function() return db.borderSize end, function(v) db.borderSize = v end)
+	OptionSlider(skin, "OPT_BAR_SPACING", 300, -116, "barSpacing", function() return db.barSpacing end, function(v) db.barSpacing = v end)
+	OptionCheck(skin, "OPT_TEXT_OUTLINE", 300, -176, function() return db.textOutline end, function(v) db.textOutline = v end)
+	OptionCheck(skin, "OPT_SHOW_ICONS", 300, -206, function() return db.showIcons end, function(v) db.showIcons = v end)
+	if optionsCategory and Settings.RegisterCanvasLayoutSubcategory then
+		Settings.RegisterCanvasLayoutSubcategory(optionsCategory, skin, skin.name)
+	elseif InterfaceOptions_AddCategory then
+		InterfaceOptions_AddCategory(skin)
 	end
 end
 

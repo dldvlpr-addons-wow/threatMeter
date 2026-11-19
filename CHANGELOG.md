@@ -1,5 +1,46 @@
 # ForeverMeter
 
+## 1.18.0
+
+### New
+- **Breakdown table**: the **Table** button in the spell detail title opens a large window for the selected source,
+  with five tabs. Columns sort on click, rows expand on click, the mouse wheel scrolls.
+  - **Spells**: total, per second, share and overkill of each spell, expandable into the targets it hit.
+  - **Targets**: every target hit, expandable into the spells that hit it.
+  - **Death**: the last death recap of the source, hit by hit (time, amount, overkill, absorbed, blocked, health).
+  - **Timeline**: your spell casts, the encounter (green on a kill) and group deaths on a time axis.
+    Ctrl+wheel zooms around the cursor, the wheel scrolls, Shift+wheel scrolls the tracks, hovering shows the cast,
+    death recap or encounter, clicking a spell name hides its casts.
+    Cast times and channels show as bars behind the icons, with their length in the tooltip.
+    Interrupted casts (red) and failed casts (grey) stay on the track but are not counted.
+- **Toolbar** above the table: choose the mode and the fight shown without changing the meter window,
+  and filter the rows by name.
+- **Casts, average and casts per minute** columns for your own damage, healing, absorbs, interrupts and dispels,
+  and for other players who shared their timeline. **Flags** column (deadly, avoidable) in damage taken.
+- **Total row** at the bottom of the Spells, Targets and Compare tabs, summing the rows shown.
+- **Compare** tab: each spell in this fight against a reference fight chosen in the toolbar,
+  with the change in % and the casts on both sides.
+- **Pin a spell**: right-click a spell row to show only that spell in the Targets and Timeline tabs.
+  Click the pin button in the toolbar to clear it.
+- **Shared timeline**: at the end of each fight, ForeverMeter sends your spell casts to your group
+  (party, raid or instance group). Select another player to see their casts on the timeline,
+  when they use ForeverMeter too. The other tabs already show every player's details without sharing.
+- Tables fill out of combat (the game hides the numbers during combat). The timeline keeps the last 40 fights.
+  After a /reload, a fight comes back only while the game still lists it in its meter sessions.
+  A /reload during a fight keeps recording that fight.
+  A fight with more than 1000 casts shares only the last 1000, and the chat says so.
+  The game gives no timestamps for damage nor other players' casts.
+
+- **Appearance** page under Options → AddOns → ForeverMeter: background, border, title bar, title text
+  and bar background colours, border size (0 for none), bar spacing, outlined bar text, class and spell icons on or off.
+  The detail window and the breakdown table follow the same look. Changing a setting there sets the theme to Custom.
+  Export and import carry these settings.
+- **Four new themes**: `dark`, `clear` (transparent, no border), `bold` and `ui` (game interface style).
+  The other themes now also reset the appearance settings to their defaults.
+
+### Fixed
+- A game error while reading a death recap is now reported instead of being hidden.
+
 ## 1.17.3
 
 ### Changed

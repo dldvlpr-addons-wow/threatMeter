@@ -7,6 +7,7 @@ exclude_files = { "selfcheck.lua", "uicheck.lua", ".luarocks", "lua_modules" }
 globals = {
 	"ForeverMeter",
 	"ForeverMeterDB",
+	"ForeverMeterTimelineDB",
 	"SlashCmdList",
 	"SLASH_FOREVERMETER1",
 	"SLASH_FOREVERMETER2",

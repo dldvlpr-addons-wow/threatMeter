@@ -8,7 +8,64 @@ for _, code in ipairs({ "enUS", "frFR", "deDE", "esES", "esMX", "itIT", "ptBR", 
 	assert(loadfile("Locale/" .. code .. ".lua"))("ForeverMeter", NS)
 end
 assert(loadfile("ForeverMeter.lua"))("ForeverMeter", NS)
+assert(loadfile("CombatBreakdown.lua"))("ForeverMeter", NS)
+assert(loadfile("CombatSync.lua"))("ForeverMeter", NS)
 local FM = ForeverMeter
+
+-- Partage des lancers (CombatSync.lua)
+assert(#FM.SplitChunks("abcde", 2) == 3 and FM.SplitChunks("abcde", 2)[3] == "e" and #FM.SplitChunks("", 2) == 0, "découpage")
+local payload = FM.BuildSyncPayload("G", { { t = 0, spellID = 7 }, { t = 1.234, spellID = 8 } }, 5000.5)
+assert(payload.b == 5000 and payload.c[1] == 50 and payload.c[3] == 173 and payload.c[4] == 8, "données envoyées")
+local guid, casts = FM.ReadSyncPayload(payload)
+assert(guid == "G" and casts[2].time == 5001.73 and casts[2].spellID == 8, "données relues")
+assert(not FM.ReadSyncPayload({ g = "G", b = 1, c = { 1 } }) and not FM.ReadSyncPayload({ g = "G", b = 1, c = { "x", 2 } }) and not FM.ReadSyncPayload("x"), "données invalides refusées")
+for _, list in ipairs({ { 1, 0 / 0 }, { 1, 2.5 }, { 1, -3 }, { 0 / 0, 2 }, { -1, 2 }, { 1.5, 2 } }) do
+	assert(not FM.ReadSyncPayload({ g = "G", b = 1, c = list }), "nombre hors forme refusé")
+end
+assert(not FM.ReadSyncPayload({ g = "G", b = 0 / 0, c = {} }) and not FM.ReadSyncPayload({ g = "G", b = 1.5, c = {} }), "base hors forme refusée")
+local between = FM.CastsBetween(casts, 5000.6, 5002)
+assert(#between == 1 and math.abs(between[1].t - 1.13) < 1e-9 and #FM.CastsBetween(nil, 0, 1) == 0, "lancers d'un combat")
+
+-- Tableau détaillé et chronologie (CombatBreakdown.lua)
+assert(#FM.SpellTargets({}) == 0 and FM.SpellTargets({ combatSpellDetails = { unitName = "A", amount = 5 } })[1].unitName == "A", "structure unique rendue en liste")
+local spellsWithTargets = {
+	{ spellID = 1, combatSpellDetails = { { unitName = "A", amount = 10 }, { unitName = "B", amount = 30 } } },
+	{ spellID = 2, combatSpellDetails = { unitName = "A", unitClassFilename = "MAGE", amount = 25 } },
+}
+local targets = FM.TargetTotals(spellsWithTargets)
+assert(targets[1].name == "A" and targets[1].amount == 35 and targets[1].spells[1].spell.spellID == 2 and targets[2].amount == 30, "cibles cumulées et triées")
+local sortedRows = FM.SortRows({ { values = { v = 2 } }, { values = {} }, { values = { v = 5 } } }, "v")
+assert(sortedRows[1].values.v == 5 and sortedRows[2].values.v == 2 and sortedRows[3].values.v == nil, "tri décroissant, valeur absente en dernier")
+assert(FM.SortRows(sortedRows, "v", true)[1].values.v == 2, "tri croissant")
+local tied = FM.SortRows({ { id = 1, values = { v = 1 } }, { id = 2, values = {} }, { id = 3, values = { v = 1 } }, { id = 4, values = {} }, { id = 5, values = { v = 1 } } }, "v")
+assert(tied[1].id == 1 and tied[2].id == 3 and tied[3].id == 5 and tied[4].id == 2 and tied[5].id == 4, "tri stable à égalité")
+local deathRows = FM.DeathRows({ { timestamp = 42, amount = 1 }, { timestamp = 40, amount = 2 } })
+assert(deathRows[1].event.amount == 2 and deathRows[1].time == -2 and deathRows[2].time == 0, "récap remis dans l'ordre, temps avant la mort")
+assert(FM.NiceStep(10, 50) == 5 and FM.NiceStep(1, 50) == 60 and FM.NiceStep(0.01, 50) == 600, "pas de l'axe")
+local tracks = FM.CastTracks({ { t = 1, spellID = 9 }, { t = 2, spellID = 8 }, { t = 3, spellID = 8 } })
+assert(tracks[1].spellID == 8 and #tracks[1].times == 2 and tracks[2].spellID == 9, "sort le plus lancé d'abord")
+-- Incantations interrompues ou ratées : sur la piste, hors du compte ; canalisation coupée comptée.
+tracks = FM.CastTracks({ { t = 1, spellID = 9, result = "interrupted" }, { t = 2, spellID = 9, result = "failed" }, { t = 3, spellID = 8, result = "cut" } })
+assert(tracks[1].spellID == 8 and tracks[1].landed == 1 and tracks[2].landed == 0 and #tracks[2].times == 2, "lancers partis comptés")
+payload = FM.BuildSyncPayload("G", { { t = 0, spellID = 7, result = "interrupted" }, { t = 1, spellID = 8 } }, 5000)
+assert(#payload.c == 2 and payload.c[2] == 8, "partage : lancers partis seulement")
+local long = {}
+for i = 1, 1001 do long[i] = { t = i, spellID = 7 } end
+local landed
+payload, landed = FM.BuildSyncPayload("G", long, 5000)
+assert(#payload.c == 2000 and landed == 1001, "partage tronqué : nombre de lancers partis rendu")
+-- Sauvegarde au /reload : combat fermé lié à une session ; reprise si la session existe encore sous le même nom.
+local sessions = { { sessionID = 3, name = "Ogre" }, { sessionID = SECRET, name = "X" } }
+local saved = FM.SavableSegments({ { stop = 10, sessionID = 3, casts = {}, encounters = {} }, { sessionID = 3 }, { stop = 5, sessionID = 4 } }, sessions)
+assert(#saved == 1 and saved[1].sessionName == "Ogre", "combats sauvegardés")
+assert(#FM.RestorableSegments(saved, sessions, 20) == 1, "combat repris")
+assert(#FM.RestorableSegments(saved, { { sessionID = 3, name = "Loup" } }, 20) == 0, "session remplacée : écarté")
+assert(#FM.RestorableSegments(saved, sessions, 5) == 0, "horloge repartie de zéro : écarté")
+assert(#FM.RestorableSegments({ "x", { stop = 1 } }, sessions, 20) == 0 and #FM.RestorableSegments(nil, sessions, 20) == 0, "données abîmées écartées")
+assert(FM.NearestTime({ 1, 5, 9 }, 5.4, 1) == 2 and FM.NearestTime({ 1, 5 }, 3, 1) == nil, "instant le plus proche")
+assert(FM.MatchesFilter("Fireball", "") and FM.MatchesFilter("Fireball", "BALL") and not FM.MatchesFilter("Fireball", "frost"), "filtre sans casse")
+assert(not FM.MatchesFilter(SECRET, "a") and FM.MatchesFilter(SECRET, nil) and not FM.MatchesFilter(nil, "a"), "filtre : nom secret ou absent écarté")
+assert(FM.MatchesFilter("a.b", "."), "filtre littéral, pas un motif")
 
 assert(FM.FormatValue(900) == "900" and FM.FormatValue(12345) == "12.3k" and FM.FormatValue(2500000) == "2.50M")
 assert(FM.FormatTime(125) == "2:05")
@@ -186,6 +243,23 @@ Bad({ windows = { { mode = "damage", anchor = { to = 1, side = "BOTTOM" } } } },
 Bad({ windows = { { mode = "damage" }, { mode = "damage", anchor = { to = 1, side = "BOTTOM", x = 1 } } } }, "windows.2.anchor")
 Bad({ windows = { { mode = "damage", barColor = { r = 2, g = 0, b = 0 } } } }, "windows.1.barColor")
 Bad({ windows = { { mode = "damage", filter = "rare" } } }, "windows.1.filter")
+-- Habillage : couleurs, épaisseur et espacement bornés, cases booléennes
+assert(FM.ValidateSettings({ windows = { { mode = "damage" } }, bgColor = { r = 0, g = 0.5, b = 1 }, borderSize = 0, barSpacing = 6, textOutline = true, showIcons = false }))
+Bad({ windows = { { mode = "damage" } }, headerColor = { r = 0, g = 0 } }, "headerColor")
+Bad({ windows = { { mode = "damage" } }, borderSize = 4 }, "borderSize")
+Bad({ windows = { { mode = "damage" } }, showIcons = 1 }, "showIcons")
+-- Thème reconnu : clé absente du thème = défaut, couleurs comparées champ par champ avec tolérance
+do
+	local s = {}
+	for _, k in ipairs(FM.THEME_KEYS) do s[k] = FM.ThemeValue(FM.THEMES[1], k) end
+	assert(FM.CurrentTheme(s) == "classic", "classic avec les défauts")
+	local bold = FM.THEMES[7]
+	for _, k in ipairs(FM.THEME_KEYS) do s[k] = FM.ThemeValue(bold, k) end
+	s.bgColor = { r = bold.bgColor.r + 1e-9, g = bold.bgColor.g, b = bold.bgColor.b }
+	assert(FM.CurrentTheme(s) == "bold", "couleur à 1e-9 près : même thème")
+	s.bgColor = { r = 0.5, g = 0, b = 0 }
+	assert(FM.CurrentTheme(s) == nil, "couleur changée : personnalisé")
+end
 Bad("MIR1", "?")
 
 -- Arguments de /fm report : nombre et canal optionnels, chuchotement avec nom obligatoire

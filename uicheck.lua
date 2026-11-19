@@ -66,6 +66,19 @@ local testCompareSecret = false
 UnitIsUnit = function(a, b) if testCompareSecret then return SECRET end return a == b end
 shiftDown = false
 IsShiftKeyDown = function() return shiftDown end
+-- Messages d'addon et encodage : envois capturés ; l'encodage range la valeur et rend une clé allongée (plusieurs morceaux).
+GetServerTime = function() return 5000 end
+local addonMessages, encoded = {}, {}
+C_ChatInfo = { RegisterAddonMessagePrefix = function() return 0 end,
+	SendAddonMessage = function(prefix, text, channel) addonMessages[#addonMessages + 1] = { prefix = prefix, text = text, channel = channel }; return 0 end }
+C_EncodingUtil = {
+	SerializeCBOR = function(v) encoded[#encoded + 1] = v; return "cbor" .. #encoded end,
+	DeserializeCBOR = function(s) return encoded[tonumber(s:match("^cbor(%d+)$"))] end,
+	CompressString = function(s) return s end, DecompressString = function(s) return s end,
+	EncodeBase64 = function(s) return s .. "#" .. string.rep("A", 300) end, DecodeBase64 = function(s) return s:match("^(.-)#") end,
+}
+ctrlDown = false
+IsControlKeyDown = function() return ctrlDown end
 -- testBoss : valeurs de UnitDetailedThreatSituation secrètes, statut de UnitThreatSituation lisible (ou secret si "secret").
 local testBoss, testStatus = nil, { player = 3, party1 = 1 }
 UnitDetailedThreatSituation = function(u)
@@ -131,11 +144,13 @@ for _, code in ipairs({ "enUS", "frFR", "deDE", "esES", "esMX", "itIT", "ptBR", 
 end
 assert(loadfile("Mirror.lua"))("ForeverMeter", NS)
 assert(loadfile("ForeverMeter.lua"))("ForeverMeter", NS)
+assert(loadfile("CombatBreakdown.lua"))("ForeverMeter", NS)
+assert(loadfile("CombatSync.lua"))("ForeverMeter", NS)
 local FM = ForeverMeter
 assert(FM.MODES[1] == "threat" and FM.MODES[6] == "enemytaken" and FM.MODES[7] == "avoidable" and FM.MODE_INFO.avoidable.type == 8 and FM.MODE_INFO.enemytaken.label == "Dégâts subis (ennemis)", "modes lus dans Enum")
 
 -- Chargement : trouve la frame d'événements (celle qui a ADDON_LOADED dans OnEvent) via le script OnUpdate.
-ForeverMeterDB = { mode = "heal", point = { "TOPLEFT", nil, "TOPLEFT", 5, -5 }, locked = true }
+ForeverMeterDB = { mode = "heal", point = { "TOPLEFT", nil, "TOPLEFT", 5, -5 }, locked = true, titleColor = { r = 0.5 } }
 local eventsFrame
 -- Les frames sans nom : on retrouve celle avec OnEvent + OnUpdate en explorant les Obj créés par CreateFrame.
 local created = {}
@@ -148,6 +163,8 @@ for _, code in ipairs({ "enUS", "frFR", "deDE", "esES", "esMX", "itIT", "ptBR", 
 end
 assert(loadfile("Mirror.lua"))("ForeverMeter", NS)
 assert(loadfile("ForeverMeter.lua"))("ForeverMeter", NS)
+assert(loadfile("CombatBreakdown.lua"))("ForeverMeter", NS)
+assert(loadfile("CombatSync.lua"))("ForeverMeter", NS)
 FM = ForeverMeter
 for _, f in ipairs(created) do if f.scripts.OnEvent and f.scripts.OnUpdate then eventsFrame = f end end
 -- Hors combat, l'OnUpdate ne redessine qu'après un événement du compteur : Tick() simule une mise à jour des données.
@@ -162,6 +179,7 @@ Fire("ADDON_LOADED", "ForeverMeter")
 local db = ForeverMeterDB
 assert(db.mode == nil and #db.windows == 1 and db.windows[1].mode == "heal" and db.windows[1].point[4] == 5, "migration db.mode/db.point")
 assert(db.locked == nil and db.windows[1].locked == true, "migration du verrou global vers la fenêtre")
+assert(db.titleColor.r == 0.5 and db.titleColor.g == 0.82 and db.titleColor.b == 0, "couleur complétée après le miroir")
 db.windows[1].locked = nil
 local w1 = ForeverMeterFrame
 assert(w1 and w1.cfg == db.windows[1])
@@ -370,6 +388,151 @@ bar.scripts.OnMouseUp(bar)
 local d = ForeverMeterDetailFrame
 assert(d.shown and w1.selectedGuid == "Player-player" and d.title.text == "Moi : Dégâts", tostring(d.title.text))
 assert(d.bars[1].left.text == "Sort1" and d.bars[1].right.text == "1.2k (3/s, 60.0%)", d.bars[1].right.text)
+-- Tableau détaillé : onglets Sorts, Cibles, Mort et Chronologie de la source ouverte dans le détail
+do
+	local bd, errorsBefore = ForeverMeterBreakdownFrame, errorsReported
+	for _, spell in ipairs(session.combatSources[1].combatSpells) do
+		if spell.spellID == 1 then spell.combatSpellDetails = { { unitName = "Ogre", amount = 800 }, { unitName = "Loup", amount = 400 } } end
+	end
+	NS.Breakdown.Open(d.owner)
+	local function Cell(row, column) return bd.rows[row].cells[column].text end
+	assert(bd.shown and bd.title.text:find("^Moi : Dégâts"), tostring(bd.title.text))
+	-- Dégâts : nom, lancers, moyenne, lancers/min (« — » sans combat enregistré), total, par s, %, surplus ; ligne Total en bas.
+	local totalRow = 0
+	for i in pairs(bd.rows) do totalRow = math.max(totalRow, i) end
+	assert(Cell(1, 1) == "+ Sort1" and Cell(1, 2) == "—" and Cell(1, 5) == "1.2k" and Cell(1, 7) == "60.0%", tostring(Cell(1, 1)))
+	assert(bd.rows[totalRow].shown and Cell(totalRow, 1) == "Total" and Cell(totalRow, 5) == "2.0k" and Cell(totalRow, 7) == "100.0%", "ligne Total")
+	bd.rows[1].scripts.OnMouseUp(bd.rows[1])
+	assert(Cell(1, 1) == "- Sort1" and Cell(2, 1) == "Ogre" and Cell(3, 1) == "Loup" and Cell(4, 1) == "Sort2", "sort déplié en cibles")
+	bd.tabs[2].scripts.OnClick(bd.tabs[2])
+	assert(Cell(1, 1) == "+ Ogre" and Cell(1, 2) == "800" and Cell(2, 1) == "+ Loup", tostring(Cell(1, 1)))
+	bd.tabs[3].scripts.OnClick(bd.tabs[3])
+	assert(Cell(1, 1) == "Sort5 (Ogre)" and Cell(1, 2) == "-2.0s" and Cell(1, 3) == "900" and Cell(2, 1) == "Frappe" and Cell(2, 7) == "", tostring(Cell(1, 1)))
+	-- Chronologie : combat enregistré (début à 100 s, rencontre gagnée, deux lancers du joueur), relié à la session 12
+	local recorder = bd.recorder
+	local function Record(event, ...) recorder.scripts.OnEvent(recorder, event, ...) end
+	testClock = 100; Record("PLAYER_REGEN_DISABLED"); Record("ENCOUNTER_START", 1, "Ogre", 1, 5)
+	testClock = 103; Record("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 1); Record("UNIT_SPELLCAST_SUCCEEDED", "party1", "cast", 2)
+	testClock = 110; Record("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 1); Record("ENCOUNTER_END", 1, "Ogre", 1, 5, 1)
+	Record("DAMAGE_METER_COMBAT_SESSION_UPDATED", 0, 12); Record("PLAYER_REGEN_ENABLED")
+	local segment = NS.Breakdown.Segments[#NS.Breakdown.Segments]
+	assert(#segment.casts == 2 and segment.casts[1].t == 3 and segment.sessionID == 12 and segment.encounters[1].stop == 10 and segment.encounters[1].success, "segment enregistré")
+	bd.tabs[4].scripts.OnClick(bd.tabs[4])
+	local plot = bd.plot
+	assert(plot.shown, "chronologie affichée")
+	-- Survol du premier lancer : piste 3 (après Rencontre et Morts), 3 s à 60.2 px/s
+	plot.t, cursorX, cursorY = 1000, 181, 1000 - 45
+	GameTooltip.texts = {}
+	plot.scripts.OnEnter(plot); plot.scripts.OnUpdate(plot, 0.1)
+	assert(GameTooltip.text == "Sort1" and GameTooltip.texts[1] == "0:03 - lancer 1 sur 2", tostring(GameTooltip.texts[1]))
+	plot.scripts.OnLeave(plot)
+	ctrlDown = true; plot.scripts.OnMouseWheel(plot, 1); ctrlDown = false
+	plot.scripts.OnMouseWheel(plot, -1); shiftDown = true; plot.scripts.OnMouseWheel(plot, -1); shiftDown = false
+	-- Partage : le combat fermé part au groupe en 2 morceaux (heure serveur 5000 = 100 s locales).
+	for _ = 1, 5 do NS.Sync.sender.scripts.OnUpdate(NS.Sync.sender, 1) end
+	assert(#addonMessages == 2 and addonMessages[1].text:match("^%d+:1:2:cbor") and addonMessages[1].channel == "PARTY", "envoi en morceaux")
+	local sent = encoded[#encoded]
+	assert(sent.g == "Player-player" and sent.b == 5000 and sent.c[1] == 300 and sent.c[3] == 1000 and sent.c[4] == 1, "lancers envoyés")
+	-- Réception des lancers d'un autre joueur, morceaux dans le désordre ; affichés quand il est la source suivie.
+	local payload = FM.BuildSyncPayload("Player-party1", { { t = 5, spellID = 2 } }, 5000)
+	local chunks = FM.SplitChunks(C_EncodingUtil.EncodeBase64(C_EncodingUtil.CompressString(C_EncodingUtil.SerializeCBOR(payload))), 240)
+	local listener = NS.Sync.listener
+	-- Refusés : chuchotement hors groupe, et lancers annoncés pour un autre joueur que l'expéditeur.
+	listener.scripts.OnEvent(listener, "CHAT_MSG_ADDON", "ForeverMeter", "6:1:2:" .. chunks[1], "WHISPER", "party1")
+	listener.scripts.OnEvent(listener, "CHAT_MSG_ADDON", "ForeverMeter", "6:2:2:" .. chunks[2], "WHISPER", "party1")
+	listener.scripts.OnEvent(listener, "CHAT_MSG_ADDON", "ForeverMeter", "5:1:2:" .. chunks[1], "PARTY", "party2")
+	listener.scripts.OnEvent(listener, "CHAT_MSG_ADDON", "ForeverMeter", "5:2:2:" .. chunks[2], "PARTY", "party2")
+	assert(#NS.Sync.CastsBetween("Player-party1", 5000, 5010) == 0, "lancers d'un tiers refusés")
+	listener.scripts.OnEvent(listener, "CHAT_MSG_ADDON", "ForeverMeter", "7:2:2:" .. chunks[2], "PARTY", "party1")
+	listener.scripts.OnEvent(listener, "CHAT_MSG_ADDON", "ForeverMeter", "7:1:2:" .. chunks[1], "PARTY", "party1")
+	listener.scripts.OnEvent(listener, "CHAT_MSG_ADDON", "ForeverMeter", "pas un morceau", "PARTY", "party1")
+	assert(NS.Sync.CastsBetween("Player-party1", 5000, 5010)[1].t == 5, "lancers reçus")
+	local owner = d.owner
+	owner.selectedGuid = "Player-party1"; bd.tabs[4].scripts.OnClick(bd.tabs[4])
+	assert(plot.shown and bd.help.text == NS.L.TIMELINE_HELP, "chronologie de l'autre joueur : " .. tostring(bd.help.text))
+	owner.selectedGuid = "Player-inconnu"; bd.tabs[4].scripts.OnClick(bd.tabs[4])
+	assert(bd.help.text == NS.L.TIMELINE_NO_SYNC, "aucun lancer reçu")
+	owner.selectedGuid = "Player-player"
+	-- Barre d'outils : combat Ogre (session 12, enregistré), lancers du joueur dans les colonnes des sorts.
+	local toolbar = bd.toolbar
+	local function Pick(prefix)
+		for _, e in ipairs(LAST_MENU) do
+			if type(e[2]) == "string" and e[2]:sub(1, #prefix) == prefix then return e[4]() end
+		end
+		error("entrée absente : " .. prefix)
+	end
+	bd.tabs[1].scripts.OnClick(bd.tabs[1])
+	toolbar.session.scripts.OnClick(toolbar.session); Pick("Ogre")
+	assert(toolbar.session.text.text:find("^Ogre"), tostring(toolbar.session.text.text))
+	assert(Cell(1, 1) == "+ Sort1" and Cell(1, 2) == "2" and Cell(1, 3) == "600" and Cell(1, 4) == "12.0" and Cell(2, 2) == "", "lancers : " .. tostring(Cell(1, 2)))
+	-- Filtre texte : seules les lignes dont le nom le contient, total recalculé.
+	toolbar.search:SetText("SORT2"); toolbar.search.scripts.OnTextChanged(toolbar.search)
+	assert(Cell(1, 1) == "Sort2" and not bd.rows[2].shown and Cell(totalRow, 5) == "800", "filtre : " .. tostring(Cell(1, 1)))
+	toolbar.search:SetText(""); toolbar.search.scripts.OnTextChanged(toolbar.search)
+	-- Clic droit : sort épinglé, bouton de retrait affiché ; un clic sur le bouton le retire.
+	bd.rows[1].scripts.OnMouseUp(bd.rows[1], "RightButton")
+	assert(toolbar.pin.shown and toolbar.pin.text.text:find("Sort1"), "épinglé")
+	bd.tabs[2].scripts.OnClick(bd.tabs[2])
+	assert(Cell(1, 1) == "+ Ogre" and Cell(totalRow, 2) == "1.2k", "cibles du sort épinglé : " .. tostring(Cell(totalRow, 2)))
+	toolbar.pin.scripts.OnClick(toolbar.pin)
+	assert(not toolbar.pin.shown, "épingle retirée")
+	-- Comparer : message sans référence, puis le même combat en référence (écart nul).
+	bd.tabs[5].scripts.OnClick(bd.tabs[5])
+	assert(bd.message.text == NS.L.COMPARE_NO_REFERENCE and toolbar.reference.shown, tostring(bd.message.text))
+	toolbar.reference.scripts.OnClick(toolbar.reference); Pick("Ogre")
+	assert(Cell(1, 1) == "Sort1" and Cell(1, 2) == "1.2k" and Cell(1, 3) == "1.2k" and Cell(1, 4) == "+0.0%" and Cell(1, 5) == "2" and Cell(1, 6) == "2", "comparaison : " .. tostring(Cell(1, 4)))
+	-- Mode choisi dans la barre : la fenêtre d'origine garde le sien.
+	toolbar.mode.scripts.OnClick(toolbar.mode); Pick("Soins")
+	assert(bd.title.text:find("^Moi : Soins") and owner.cfg.mode == "damage", tostring(bd.title.text))
+	toolbar.mode.scripts.OnClick(toolbar.mode); Pick("Dégâts")
+	-- Reset : combat choisi et référence oubliés, retour au combat de la fenêtre.
+	Record("DAMAGE_METER_RESET")
+	bd.tabs[1].scripts.OnClick(bd.tabs[1])
+	assert(toolbar.session.text.text:find("^Combat actuel"), "reset : " .. tostring(toolbar.session.text.text))
+	bd.tabs[5].scripts.OnClick(bd.tabs[5])
+	assert(bd.message.text == NS.L.COMPARE_NO_REFERENCE, "reset : référence oubliée")
+	-- Détail des lancers : incantation réussie (barre depuis START), interrompue, ratée, canalisation coupée.
+	testClock = 200; Record("PLAYER_REGEN_DISABLED")
+	Record("UNIT_SPELLCAST_START", "player", "c1", 1); testClock = 202; Record("UNIT_SPELLCAST_SUCCEEDED", "player", "c1", 1)
+	Record("UNIT_SPELLCAST_START", "player", "c2", 3); testClock = 203; Record("UNIT_SPELLCAST_INTERRUPTED", "player", "c2", 3)
+	Record("UNIT_SPELLCAST_FAILED", "player", "c2", 3) -- même incantation : déjà comptée
+	Record("UNIT_SPELLCAST_FAILED", "player", "c9", 4) -- refusé sans START : ignoré
+	Record("UNIT_SPELLCAST_START", "player", "c3", 3); testClock = 204; Record("UNIT_SPELLCAST_FAILED", "player", "c3", 3)
+	Record("UNIT_SPELLCAST_CHANNEL_START", "player", "c4", 5); Record("UNIT_SPELLCAST_SUCCEEDED", "player", "c4", 5)
+	testClock = 207; Record("UNIT_SPELLCAST_CHANNEL_STOP", "player", "c4", 5, "Creature-1")
+	Record("DAMAGE_METER_COMBAT_SESSION_UPDATED", 0, 12); testClock = 210; Record("PLAYER_REGEN_ENABLED")
+	local casts = NS.Breakdown.Segments[#NS.Breakdown.Segments].casts
+	assert(#casts == 4 and casts[1].from == 0 and casts[1].t == 2 and not casts[1].result, "incantation réussie")
+	assert(casts[2].result == "interrupted" and casts[2].from == 2 and casts[2].t == 3, "incantation interrompue")
+	assert(casts[3].result == "failed" and casts[3].spellID == 3, "incantation ratée")
+	assert(casts[4].result == "cut" and casts[4].from == 4 and casts[4].to == 7, "canalisation coupée")
+	bd.tabs[4].scripts.OnClick(bd.tabs[4])
+	assert(plot.shown, "chronologie avec barres")
+	-- /reload : combat sauvegardé (session 12 « Ogre » encore connue du client), repris au chargement.
+	local count = #NS.Breakdown.Segments
+	Record("PLAYER_LOGOUT")
+	assert(#ForeverMeterTimelineDB == 1 and ForeverMeterTimelineDB[1].sessionName == "Ogre", "combat sauvegardé")
+	Record("PLAYER_ENTERING_WORLD")
+	assert(ForeverMeterTimelineDB == nil and #NS.Breakdown.Segments == count + 1, "combat repris")
+	-- /reload en plein combat : combat sauvegardé, rouvert au chargement tant que le combat dure.
+	Record("DAMAGE_METER_RESET")
+	testClock, testCombat = 220, true; Record("PLAYER_REGEN_DISABLED"); Record("UNIT_SPELLCAST_SUCCEEDED", "player", "c5", 1)
+	Record("DAMAGE_METER_COMBAT_SESSION_UPDATED", 0, 12); testClock = 225
+	Record("PLAYER_LOGOUT")
+	assert(#ForeverMeterTimelineDB == 1 and ForeverMeterTimelineDB[1].stop == 225, "combat en cours sauvegardé")
+	testCombat = false; Record("PLAYER_REGEN_ENABLED"); testCombat = true -- ferme le segment du module, comme le /reload
+	for i = #NS.Breakdown.Segments, 1, -1 do NS.Breakdown.Segments[i] = nil end
+	Record("PLAYER_ENTERING_WORLD")
+	local reopened = NS.Breakdown.Segments[#NS.Breakdown.Segments]
+	assert(#NS.Breakdown.Segments == 1 and not reopened.stop and #reopened.casts == 1 and not reopened.openAtLogout, "combat rouvert")
+	testClock = 230; Record("UNIT_SPELLCAST_SUCCEEDED", "player", "c6", 1)
+	testCombat = false; Record("PLAYER_REGEN_ENABLED")
+	assert(#reopened.casts == 2 and reopened.stop == 230, "suite du combat enregistrée")
+	testClock = nil
+	assert(errorsReported == errorsBefore, "aucune erreur de rendu")
+	bd.close.scripts.OnClick(bd.close)
+	assert(not bd.shown)
+end
 -- Clic droit sur le titre du détail : report des sorts de la source ouverte, même canal que /fm report
 local sent, realSend = {}, SendChatMessage
 SendChatMessage = function(msg, ch) sent[#sent + 1] = ch .. "> " .. msg end
@@ -768,7 +931,17 @@ do
 	slash("theme flat"); assert(db.barFont == "arial" and db.barTexture == "flat" and db.fontSize == 11, "koKR : police gardée")
 	slash("theme"); assert(said[#said - 1]:find("flat"), "koKR : police ignorée dans la comparaison")
 	GetLocale, DEFAULT_CHAT_FRAME.AddMessage = realLocale, chatFrame
+	-- Habillage : couleurs copiées (jamais la table du thème), espacement appliqué aux barres et à la hauteur
+	slash("theme bold")
+	assert(db.borderSize == 2 and db.textOutline == true and db.bgColor.r == 0.1 and db.bgColor ~= FM.THEMES[7].bgColor, "thème bold copié")
+	assert(ForeverMeterFrame.bars[2].point[3] == -18 - (20 + 2), "espacement du thème")
+	assert(ForeverMeterFrame.header.bg ~= nil and ForeverMeterFrame.bgAlpha == 0.9, "fond du thème")
+	slash("theme clear"); assert(db.borderSize == 0 and db.bgAlpha == 0 and db.barFont == nil and db.textOutline == true)
 	slash("theme classic")
+	assert(db.borderSize == 1 and db.barSpacing == 1 and db.textOutline == false and db.showIcons == true and db.bgColor.r == 0, "classic : habillage par défaut")
+	db.showIcons = false; db.borderSize = 0; slash("rowheight " .. db.rowHeight)
+	assert(not w1.bars[1].icon.shown and w1.header.point[2] == 0, "icône masquée, sans bordure")
+	db.showIcons = true; db.borderSize = 1; slash("rowheight " .. db.rowHeight)
 end
 slash("autoreset"); assert(db.autoReset == true); slash("autoreset"); assert(db.autoReset == false)
 inGroup = false; slash("autohide"); assert(db.autoHide == true)
