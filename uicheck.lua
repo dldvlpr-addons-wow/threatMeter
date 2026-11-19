@@ -125,8 +125,8 @@ local session = { durationSeconds = 60, totalAmount = 3000, maxAmount = 2000, co
 C_DamageMeter = {
 	GetCombatSessionFromType = function() return session end,
 	GetCombatSessionFromID = function() return session end,
-	GetCombatSessionSourceFromType = function(_, _, guid) for _, s in ipairs(session.combatSources) do if s.sourceGUID == guid then return s end end end,
-	GetCombatSessionSourceFromID = function(_, _, guid) for _, s in ipairs(session.combatSources) do if s.sourceGUID == guid then return s end end end,
+	GetCombatSessionSourceFromType = function(_, meterType, guid) LAST_SOURCE_TYPE = meterType; for _, s in ipairs(session.combatSources) do if s.sourceGUID == guid then return s end end end,
+	GetCombatSessionSourceFromID = function(_, meterType, guid) LAST_SOURCE_TYPE = meterType; for _, s in ipairs(session.combatSources) do if s.sourceGUID == guid then return s end end end,
 	GetAvailableCombatSessions = function() return { { sessionID = 12, name = "Ogre", durationSeconds = 30 } } end,
 	GetSessionDurationSeconds = function() return 60 end,
 	ResetAllCombatSessions = function() calls.reset = (calls.reset or 0) + 1 end,
@@ -473,7 +473,9 @@ do
 	bd.rows[1].scripts.OnMouseUp(bd.rows[1], "RightButton")
 	assert(toolbar.pin.shown and toolbar.pin.text.text:find("Sort1"), "épinglé")
 	bd.tabs[2].scripts.OnClick(bd.tabs[2])
-	assert(Cell(1, 1) == "+ Ogre" and Cell(totalRow, 2) == "1.2k", "cibles du sort épinglé : " .. tostring(Cell(totalRow, 2)))
+	-- Onglet Dégâts subis : lu en dégâts subis (type 7) quel que soit le mode, sans tenir compte de l'épingle.
+	assert(bd.tabs[2].text.text == NS.L.MODE_TAKEN and LAST_SOURCE_TYPE == 7, "onglet Dégâts subis : type " .. tostring(LAST_SOURCE_TYPE))
+	assert(Cell(1, 1) == "+ Ogre" and Cell(totalRow, 2) == "1.2k", "unités de l'onglet Dégâts subis : " .. tostring(Cell(totalRow, 2)))
 	toolbar.pin.scripts.OnClick(toolbar.pin)
 	assert(not toolbar.pin.shown, "épingle retirée")
 	-- Comparer : message sans référence, puis le même combat en référence (écart nul).

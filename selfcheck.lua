@@ -32,6 +32,7 @@ local spellsWithTargets = {
 	{ spellID = 1, combatSpellDetails = { { unitName = "A", amount = 10 }, { unitName = "B", amount = 30 } } },
 	{ spellID = 2, combatSpellDetails = { unitName = "A", unitClassFilename = "MAGE", amount = 25 } },
 }
+assert(#FM.SpellTargets({ combatSpellDetails = { unitName = "", amount = 0 } }) == 0, "structure vide du client écartée")
 local targets = FM.TargetTotals(spellsWithTargets)
 assert(targets[1].name == "A" and targets[1].amount == 35 and targets[1].spells[1].spell.spellID == 2 and targets[2].amount == 30, "cibles cumulées et triées")
 local sortedRows = FM.SortRows({ { values = { v = 2 } }, { values = {} }, { values = { v = 5 } } }, "v")

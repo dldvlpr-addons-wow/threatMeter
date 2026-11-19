@@ -3,7 +3,7 @@
 --
 -- Onglets :
 --   Sorts       : sorts de la source (total, par seconde, %, overkill), chacun dépliable en cibles.
---   Cibles      : cibles touchées, chacune dépliable en sorts.
+--   Dégâts subis : unités qui ont touché la source (lu en dégâts subis quel que soit le mode), dépliables en sorts.
 --   Mort        : récap de la dernière mort de la source, coup par coup.
 --   Chronologie : sorts lancés par le joueur, rencontres et morts du groupe sur un axe du temps.
 --
@@ -26,8 +26,13 @@ function FM.SpellTargets(spell)
 	local details = spell and spell.combatSpellDetails
 	if issecretvalue(details) or type(details) ~= "table" then return {} end
 	-- Forme testée sans lire les champs : unitName peut être secret, et comparer un secret lève une erreur.
-	if details[1] ~= nil or next(details) == nil then return details end
-	return { details }
+	if details[1] == nil and next(details) ~= nil then details = { details } end
+	-- Sans détail par unité (dégâts infligés), le client rend quand même une structure, au nom vide et au montant 0.
+	local list = {}
+	for _, d in ipairs(details) do
+		if issecretvalue(d.unitName) or d.unitName ~= "" then list[#list + 1] = d end
+	end
+	return list
 end
 
 -- Cibles de tous les sorts : { name, class, amount, spells = { { spell, amount } } }, triées par montant décroissant.
@@ -435,7 +440,7 @@ message:SetPoint("TOPRIGHT", -20, -(CONTENT_TOP + 40))
 message:SetJustifyH("CENTER")
 
 -- Onglets
-local TABS = { { key = "spells", label = "TAB_SPELLS" }, { key = "targets", label = "TAB_TARGETS" },
+local TABS = { { key = "spells", label = "TAB_SPELLS" }, { key = "targets", label = "MODE_TAKEN" },
 	{ key = "death", label = "TAB_DEATH" }, { key = "timeline", label = "TAB_TIMELINE" }, { key = "compare", label = "TAB_COMPARE" } }
 local tabButtons = {}
 for i, tab in ipairs(TABS) do
@@ -582,11 +587,14 @@ local function HeaderButton(i)
 	return button
 end
 
+-- Onglets Mort et Dégâts subis : sorts ennemis, absents des lancers de la source, donc pas d'épingle.
+local function EnemySpellTab() return state.tab == "death" or state.tab == "targets" end
+
 local function RowEnter(row)
 	if not row.spellID then return end
 	GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 	if GameTooltip.SetSpellByID then GameTooltip:SetSpellByID(row.spellID) end
-	if state.tab ~= "death" then GameTooltip:AddLine(L.BREAKDOWN_PIN_HINT, 0.5, 0.8, 1) end
+	if not EnemySpellTab() then GameTooltip:AddLine(L.BREAKDOWN_PIN_HINT, 0.5, 0.8, 1) end
 	GameTooltip:Show()
 end
 
@@ -605,12 +613,11 @@ local function TableRow(i)
 	row.icon:SetSize(ROW_HEIGHT - 2, ROW_HEIGHT - 2)
 	row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 	row.cells = {}
-	-- Clic gauche : déplie la ligne. Clic droit sur un sort : l'épingle (Cibles et Chronologie n'affichent que lui),
+	-- Clic gauche : déplie la ligne. Clic droit sur un sort : l'épingle (la Chronologie n'affiche que lui),
 	-- un second clic droit le retire.
 	row:SetScript("OnMouseUp", function(self, button)
 		if button == "RightButton" then
-			-- Onglet Mort : sorts ennemis, absents des lancers et des cibles de la source.
-			if state.tab == "death" or not self.spellID or issecretvalue(self.spellID) then return end
+			if EnemySpellTab() or not self.spellID or issecretvalue(self.spellID) then return end
 			state.pinned = state.pinned ~= self.spellID and self.spellID or nil
 		elseif self.expandKey then
 			state.expanded[self.expandKey] = not state.expanded[self.expandKey] or nil
@@ -900,14 +907,6 @@ local TARGET_COLUMNS = {
 local function TargetLines(win, source)
 	local spells, secret = Meter.SortedSpells(source)
 	if secret then return nil, L.DETAIL_OUT_OF_COMBAT end
-	-- Sort épinglé : seules ses cibles.
-	if state.pinned then
-		local only = {}
-		for _, s in ipairs(spells) do
-			if not issecretvalue(s.spellID) and s.spellID == state.pinned then only[#only + 1] = s end
-		end
-		spells = only
-	end
 	-- Cumul par nom : un nom secret (instance) ne peut servir de clé.
 	for _, spell in ipairs(spells) do
 		if not TargetsReadable(spell, true) then return nil, L.BREAKDOWN_TARGETS_HIDDEN end
@@ -1452,6 +1451,9 @@ local function RenderContent()
 		elseif state.tab == "death" then
 			columns, lines = DeathLines(win, state.guid)
 		else
+			-- Onglet Dégâts subis : lu en dégâts subis quel que soit le mode, seul cas où le client détaille par unité.
+			-- Source ennemie (enemytaken) : absente des dégâts subis du groupe, son mode est gardé.
+			if state.tab == "targets" and win.cfg.mode ~= "enemytaken" then win = { cfg = { mode = "taken", view = win.cfg.view } } end
 			local source = Meter.ReadSource(win, state.guid)
 			if not source then
 				why = L.BREAKDOWN_NO_DATA

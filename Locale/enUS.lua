@@ -135,7 +135,6 @@ NS.Locales.enUS = {
     MSG_IMPORT_INVALID = "invalid import string (%s), nothing changed",
     BREAKDOWN_BUTTON = "Table",
     TAB_SPELLS = "Spells",
-    TAB_TARGETS = "Targets",
     TAB_DEATH = "Death",
     TAB_TIMELINE = "Timeline",
     COL_SPELL = "Spell",
@@ -183,6 +182,6 @@ NS.Locales.enUS = {
     COMPARE_NEW = "new",
     BREAKDOWN_TOTAL = "Total",
     BREAKDOWN_PINNED = "Only: %s (click to clear)",
-    BREAKDOWN_PIN_HINT = "Right-click: show only this spell in Targets and Timeline",
+    BREAKDOWN_PIN_HINT = "Right-click: show only this spell in Timeline",
     BREAKDOWN_SEARCH = "Filter…",
 }
