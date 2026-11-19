@@ -1,5 +1,15 @@
 # ForeverMeter
 
+## 1.18.1
+
+### Changed
+- **Breakdown table**: the **Targets** tab is now **Damage taken**. It always shows who hit the selected source and with which spells,
+  whatever the mode chosen in the toolbar. The game gives no per-target detail for damage done, so the tab was empty.
+- Pinning a spell (right-click) now only filters the Timeline tab.
+
+### Fixed
+- Breakdown table: no more empty row at 0 under each spell in the Spells tab.
+
 ## 1.18.0
 
 ### New
