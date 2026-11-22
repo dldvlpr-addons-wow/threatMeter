@@ -1516,21 +1516,6 @@ local function Open(win)
 	Render()
 end
 
--- Bouton « Tableau » dans le titre du panneau de détail.
-local detail = ForeverMeterDetailFrame
-local openButton = CreateFrame("Button", nil, detail.header)
-openButton:SetSize(56, 16)
-openButton:SetPoint("RIGHT", detail.close, "LEFT", -2, 0)
-openButton.bg = openButton:CreateTexture(nil, "BACKGROUND")
-openButton.bg:SetAllPoints()
-openButton.bg:SetColorTexture(0.25, 0.25, 0.25, 0.9)
-openButton.text = openButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-openButton.text:SetPoint("CENTER")
-openButton:SetScript("OnShow", function(self) self.text:SetText(L.BREAKDOWN_BUTTON) end)
-openButton.text:SetText(L.BREAKDOWN_BUTTON)
-openButton:SetScript("OnClick", function() Open(detail.owner) end)
-detail.title:SetPoint("RIGHT", openButton, "LEFT", -4, 0)
-
 NS.Breakdown = { Open = Open, Segments = segments }
 -- Accès des tests hors jeu (uicheck.lua) aux éléments sans nom.
 frame.tabs, frame.rows, frame.plot, frame.recorder, frame.help = tabButtons, rows, plot, recorder, help

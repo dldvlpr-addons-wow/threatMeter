@@ -249,6 +249,12 @@ assert(FM.ValidateSettings({ windows = { { mode = "damage" } }, bgColor = { r = 
 Bad({ windows = { { mode = "damage" } }, headerColor = { r = 0, g = 0 } }, "headerColor")
 Bad({ windows = { { mode = "damage" } }, borderSize = 4 }, "borderSize")
 Bad({ windows = { { mode = "damage" } }, showIcons = 1 }, "showIcons")
+assert(FM.ValidateSettings({ windows = { { mode = "damage" } }, headerSpacing = 20, shortNames = true }))
+Bad({ windows = { { mode = "damage" } }, headerSpacing = 21 }, "headerSpacing")
+Bad({ windows = { { mode = "damage" } }, shortNames = 1 }, "shortNames")
+-- Prénom seul : coupé à l'espace ou au tiret, nom simple et nom secret rendus tels quels
+assert(FM.ShortName("Thrall-Forever") == "Thrall" and FM.ShortName("Jaina Proudmoore") == "Jaina" and FM.ShortName("Thrall") == "Thrall")
+assert(FM.ShortName(SECRET) == SECRET, "nom secret jamais découpé")
 -- Thème reconnu : clé absente du thème = défaut, couleurs comparées champ par champ avec tolérance
 do
 	local s = {}

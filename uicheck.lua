@@ -100,9 +100,16 @@ SlashCmdList = {}
 MenuUtil = { CreateContextMenu = function(owner, gen)
 	local root = Obj("Menu")
 	root.entries = {}
-	for _, m in ipairs({ "CreateTitle", "CreateDivider", "CreateRadio", "CreateCheckbox", "CreateButton" }) do
-		root[m] = function(_, text, checked, func) root.entries[#root.entries + 1] = { m, text, checked, func } end
+	local function Level(level, parent)
+		for _, m in ipairs({ "CreateTitle", "CreateDivider", "CreateRadio", "CreateCheckbox", "CreateButton" }) do
+			level[m] = function(_, text, checked, func)
+				root.entries[#root.entries + 1] = { m, text, checked, func, parent = parent }
+				return Level({}, text)
+			end
+		end
+		return level
 	end
+	Level(root)
 	gen(nil, root)
 	_G.LAST_MENU = root.entries
 end }
@@ -324,15 +331,15 @@ assert(w1.title.text:find("Deaths") and w1.resetButton.text == "Reset" and Forev
 slash("lang auto")
 slash("refresh 0.1"); assert(db.refresh == 0.1); slash("refresh 9"); assert(db.refresh == 2); slash("refresh 0.2"); slash("rows 3"); slash("width 300"); slash("scale 1.2"); slash("warn 80"); slash("sound"); slash("pets"); slash("lock"); assert(db.windows[1].locked and db.windows[2].locked); slash("unlock"); assert(not db.windows[1].locked)
 slash("texture GLASS"); assert(db.barTexture == "glass"); slash("texture xx"); assert(db.barTexture == "glass"); slash("font arial 12"); assert(db.barFont == "arial" and db.fontSize == 12); slash("font 99"); assert(db.barFont == "arial" and db.fontSize == 24); slash("font xx"); assert(db.barFont == "arial"); slash("font default"); assert(db.barFont == nil and db.fontSize == nil); slash("font 2002 12"); assert(db.barFont == "2002" and db.fontSize == 12); slash("font 2002"); assert(db.fontSize == 12); slash("font default")
-slash("options"); ForeverMeterOptionSlider1.scripts.OnValueChanged(ForeverMeterOptionSlider1, 14.2); assert(db.fontSize == 14); ForeverMeterOptionSlider2.scripts.OnValueChanged(ForeverMeterOptionSlider2, 1.5); assert(db.scale == 1.5); slash("font default"); slash("scale 1")
-ForeverMeterOptionSlider5.scripts.OnValueChanged(ForeverMeterOptionSlider5, 24); assert(db.rowHeight == 24 and w1.bars[1].h == 24); ForeverMeterOptionSlider5.scripts.OnValueChanged(ForeverMeterOptionSlider5, 16)
-assert(w1.bgAlpha == 0.6); ForeverMeterOptionSlider6.scripts.OnValueChanged(ForeverMeterOptionSlider6, 0.5); assert(db.bgAlpha == 0.5 and w1.bgAlpha == 0.5 and ForeverMeterDetailFrame.bgAlpha == 0.5); ForeverMeterOptionSlider6.scripts.OnValueChanged(ForeverMeterOptionSlider6, 0.6)
+slash("options"); ForeverMeterOptionSlider7.scripts.OnValueChanged(ForeverMeterOptionSlider7, 14.2); assert(db.fontSize == 14); ForeverMeterOptionSlider1.scripts.OnValueChanged(ForeverMeterOptionSlider1, 1.5); assert(db.scale == 1.5); slash("font default"); slash("scale 1")
+ForeverMeterOptionSlider8.scripts.OnValueChanged(ForeverMeterOptionSlider8, 24); assert(db.rowHeight == 24 and w1.bars[1].h == 24); ForeverMeterOptionSlider8.scripts.OnValueChanged(ForeverMeterOptionSlider8, 16)
+assert(w1.bgAlpha == 0.6); ForeverMeterOptionSlider9.scripts.OnValueChanged(ForeverMeterOptionSlider9, 0.5); assert(db.bgAlpha == 0.5 and w1.bgAlpha == 0.5 and ForeverMeterDetailFrame.bgAlpha == 0.5); ForeverMeterOptionSlider9.scripts.OnValueChanged(ForeverMeterOptionSlider9, 0.6)
 -- Fenêtres, lignes et largeur : mêmes chemins que /fm windows, /fm rows et /fm width
 local windowCount = #db.windows
-ForeverMeterOptionSlider7.scripts.OnValueChanged(ForeverMeterOptionSlider7, 9); assert(#db.windows == ForeverMeter.MAX_WINDOWS, "fenêtres bornées")
-ForeverMeterOptionSlider7.scripts.OnValueChanged(ForeverMeterOptionSlider7, windowCount); assert(#db.windows == windowCount)
-db.windows[1].rows = 9; ForeverMeterOptionSlider8.scripts.OnValueChanged(ForeverMeterOptionSlider8, 7.4); assert(db.rows == 7 and db.windows[1].rows == nil and w1.rows == 7, "lignes communes")
-ForeverMeterOptionSlider9.scripts.OnValueChanged(ForeverMeterOptionSlider9, 1000); assert(db.width == 600 and w1.w == 600, "largeur bornée")
+ForeverMeterOptionSlider4.scripts.OnValueChanged(ForeverMeterOptionSlider4, 9); assert(#db.windows == ForeverMeter.MAX_WINDOWS, "fenêtres bornées")
+ForeverMeterOptionSlider4.scripts.OnValueChanged(ForeverMeterOptionSlider4, windowCount); assert(#db.windows == windowCount)
+db.windows[1].rows = 9; ForeverMeterOptionSlider5.scripts.OnValueChanged(ForeverMeterOptionSlider5, 7.4); assert(db.rows == 7 and db.windows[1].rows == nil and w1.rows == 7, "lignes communes")
+ForeverMeterOptionSlider6.scripts.OnValueChanged(ForeverMeterOptionSlider6, 1000); assert(db.width == 600 and w1.w == 600, "largeur bornée")
 slash("rows 3"); slash("width 300")
 slash("font oswald"); eventsFrame.scripts.OnUpdate(eventsFrame, 1); eventsFrame.scripts.OnUpdate(eventsFrame, 1); slash("font default")
 slash("mode damage"); slash("test"); assert(w1.title.text == "Dégâts · mode test" and w1.bars[3].shown and w1.bars[1].left.text == "1. WARRIOR" and not w1.bars[1].sourceGuid, w1.title.text)
@@ -590,6 +597,8 @@ local function Entry(text) for _, e in ipairs(LAST_MENU) do if e[2] == text then
 -- CreateButton(text, func) : func en position 3 ; radio/checkbox : en position 4.
 local function Call(text) local e = assert(Entry(text), text); return (e[1] == "CreateButton" and e[3] or e[4])() end
 assert(Entry("Dégâts")[3]() == true and Entry("Ogre") and Entry("Verrouiller la position")[1] == "CreateCheckbox")
+assert(Entry("Dégâts").parent == nil and Entry("Verrouiller la position").parent == "Fenêtres" and Entry("Global").parent == "Session" and Entry("Couleur de classe").parent == "Couleur des barres", "sous-menus")
+ForeverMeterBreakdownFrame:Hide(); Call("Tableau"); assert(ForeverMeterBreakdownFrame.shown, "menu : tableau ouvert"); ForeverMeterBreakdownFrame:Hide()
 assert(Entry("Verrouiller la position")[3]() == false); Entry("Verrouiller la position")[4](); assert(db.windows[1].locked == true and not db.windows[2].locked, "verrou par fenêtre")
 Call("Nouvelle fenêtre"); assert(#db.windows == 3 and ForeverMeterFrame3.shown)
 ForeverMeterFrame3.menuButton.scripts.OnClick(ForeverMeterFrame3.menuButton)
@@ -944,6 +953,11 @@ do
 	db.showIcons = false; db.borderSize = 0; slash("rowheight " .. db.rowHeight)
 	assert(not w1.bars[1].icon.shown and w1.header.point[2] == 0, "icône masquée, sans bordure")
 	db.showIcons = true; db.borderSize = 1; slash("rowheight " .. db.rowHeight)
+	-- Espace sous le titre : première barre et hauteur décalées d'autant, rien sans titre
+	local height = ForeverMeterFrame:GetHeight()
+	db.headerSpacing = 6; slash("rowheight " .. db.rowHeight)
+	assert(ForeverMeterFrame.bars[1].point[3] == -18 - 6 and ForeverMeterFrame:GetHeight() == height + 6, "espace sous le titre")
+	db.headerSpacing = 0; slash("rowheight " .. db.rowHeight)
 end
 slash("autoreset"); assert(db.autoReset == true); slash("autoreset"); assert(db.autoReset == false)
 inGroup = false; slash("autohide"); assert(db.autoHide == true)

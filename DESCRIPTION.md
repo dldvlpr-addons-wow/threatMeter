@@ -14,23 +14,31 @@ Click <span style="color: #ffd100;"><strong>Menu</strong></span> or right-click 
 
 ***
 
-## <span style="color: #3c3;">🆕 New in 1.16 and 1.17</span>
+## <span style="color: #3c3;">🆕 New in 1.18</span>
 
-### <span style="color: #0cf;">1.17</span>
+### <span style="color: #0cf;">Breakdown table</span>
 
-- <span style="color: #ffd100;"><strong>Report to any channel:</strong></span> `/fm report 5 guild`, `say`, `party`, `raid`, `instance` or `whisper <name>`. In a dungeon finder group, the report goes to instance chat by default. Works for death recaps too.
-- <span style="color: #ffd100;"><strong>Themes:</strong></span> `classic`, `flat`, `glass` and `compact` set texture, font, bar height and opacity in one click.
-- <span style="color: #ffd100;"><strong>Minimize a window</strong></span> to its title bar with the button left of the gear. Click again to restore it.
-- <span style="color: #ffd100;"><strong>Hide outside instances:</strong></span> windows show again when you enter a dungeon, raid or battleground.
-- <span style="color: #ffd100;"><strong>Threat first:</strong></span> threat leads the Display menu and mode cycling.
-- <span style="color: #ffd100;"><strong>New commands:</strong></span> `/fm mode <mode> [N]`, `/fm theme`, `/fm rowheight`, `/fm bgalpha`, `/fm autohide`, `/fm instanceonly`, `/fm autoreset`.
+Choose **Table** in a window's menu (Menu button or right-click on the title). A large window opens for the player whose bar you click, with five tabs. Columns sort on click, rows expand on click.
 
-### <span style="color: #0cf;">1.16</span>
+- <span style="color: #ffd100;"><strong>Spells:</strong></span> total, per second, share and overkill of each spell. For your own spells: casts, average per cast and casts per minute.
+- <span style="color: #ffd100;"><strong>Damage taken:</strong></span> who hit the player and with which spells, with deadly and avoidable flags.
+- <span style="color: #ffd100;"><strong>Death:</strong></span> the last death recap, hit by hit (time, amount, overkill, absorbed, blocked, health).
+- <span style="color: #ffd100;"><strong>Timeline:</strong></span> your spell casts, the encounter and group deaths on a time axis. Ctrl+wheel zooms, hovering shows the cast, cast times and channels show as bars, interrupted and failed casts are marked.
+- <span style="color: #ffd100;"><strong>Compare:</strong></span> each spell in this fight against a reference fight, with the change in %.
+- <span style="color: #ffd100;"><strong>Toolbar:</strong></span> pick the mode and the fight without changing the meter window, filter rows by name, pin a spell to isolate it on the timeline.
+- <span style="color: #ffd100;"><strong>Shared timeline:</strong></span> at the end of each fight, ForeverMeter sends your casts to your group. Select another player who uses ForeverMeter to see their casts.
 
-- <span style="color: #ffd100;"><strong>Avoidable and deadly spells</strong></span> marked in the damage taken breakdown, tooltip and report.
-- <span style="color: #ffd100;"><strong>Death recap to chat:</strong></span> shift-click a death, or `/fm report death [N]`.
-- <span style="color: #ffd100;"><strong>Settings export and import:</strong></span> `/fm export`, `/fm import`, or the options panel. An invalid string changes nothing.
-- <span style="color: #ffd100;"><strong>Boss filter</strong></span> for enemy damage taken, and <span style="color: #ffd100;"><strong>bar colour</strong></span> per window.
+### <span style="color: #0cf;">Appearance</span>
+
+- <span style="color: #ffd100;"><strong>Appearance page</strong></span> under Options → AddOns → ForeverMeter: theme, bar texture, font and size, bar height, opacity, background, border, title bar and bar colours, border size, bar spacing, outlined text, class and spell icons on or off. The detail window and the table follow the same look.
+- <span style="color: #ffd100;"><strong>Four new themes:</strong></span> `dark`, `clear`, `bold` and `ui`, on top of `classic`, `flat`, `glass` and `compact`.
+
+### <span style="color: #0cf;">Earlier</span>
+
+- <span style="color: #ffd100;"><strong>Report to any channel:</strong></span> `/fm report 5 guild`, `say`, `party`, `raid`, `instance` or `whisper <name>`. Works for death recaps too.
+- <span style="color: #ffd100;"><strong>Minimize a window</strong></span> to its title bar, and <span style="color: #ffd100;"><strong>hide outside instances.</strong></span>
+- <span style="color: #ffd100;"><strong>Avoidable and deadly spells</strong></span> marked in damage taken, <span style="color: #ffd100;"><strong>boss filter</strong></span> for enemy damage taken, <span style="color: #ffd100;"><strong>bar colour</strong></span> per window.
+- <span style="color: #ffd100;"><strong>Settings export and import:</strong></span> `/fm export`, `/fm import`, or the options panel.
 
 Full list in the **Files** tab.
 
@@ -59,11 +67,12 @@ WoW Forever looks like Classic, but it runs on the **modern game engine**. That 
 - <span style="color: #ffd100;"><strong>Threat warning,</strong></span> visual and sound, above an adjustable threshold. No sound when MuscaUI already warns.
 - <span style="color: #ffd100;"><strong>Up to 4 windows,</strong></span> each with its own mode, session, size, lock and bar colour. Windows snap to each other.
 - <span style="color: #ffd100;"><strong>Per-spell breakdown</strong></span> on click, top 5 spells on hover, spell-by-spell comparison of two players.
+- <span style="color: #ffd100;"><strong>Breakdown table</strong></span> with sortable columns: spells, damage taken, death recap, cast timeline and fight comparison.
 - <span style="color: #ffd100;"><strong>Death recap:</strong></span> time of death and last hits taken.
 - <span style="color: #ffd100;"><strong>Your own bar always shown,</strong></span> with your real rank, even below the visible rows.
 - <span style="color: #ffd100;"><strong>Per-window display:</strong></span> DPS, bar text, my bar only, no title bar, big number (a plain DPS counter).
 - <span style="color: #ffd100;"><strong>Chat report</strong></span> and <span style="color: #ffd100;"><strong>copy as text</strong></span> for Discord.
-- <span style="color: #ffd100;"><strong>Options panel:</strong></span> themes, bar textures, six bundled fonts, LibSharedMedia support, text columns, bar height, background opacity, scale.
+- <span style="color: #ffd100;"><strong>Options panel:</strong></span> eight themes, an appearance page, bar textures, six bundled fonts, LibSharedMedia support, text columns, bar height, background opacity, scale.
 - <span style="color: #ffd100;"><strong>Automation:</strong></span> show only in combat or in a group, hide outside instances, reset on a new instance or group.
 - Key bindings, addon compartment button, test mode (`/fm test`).
 - <span style="color: #ffd100;"><strong>11 languages:</strong></span> enUS, frFR, deDE, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW.
@@ -74,12 +83,14 @@ WoW Forever looks like Classic, but it runs on the **modern game engine**. That 
 
 ### <span style="color: #ff9800;">⚠ Works, with limits</span>
 
-- In combat, names and amounts are "secret values": the game lets addons show them, not compare or add them. Bars keep the game's order. Percentages, the breakdown and the comparison fill in once combat ends.
+- In combat, names and amounts are "secret values": the game lets addons show them, not compare or add them. Bars keep the game's order. Percentages, the breakdown, the table and the comparison fill in once combat ends.
 - Threat against some enemies (bosses especially) is secret in combat: bars show the threat status without numbers.
 - A report line with a name hidden by the game cannot be sent: the whole report then stays in your own chat window.
 
 ### <span style="color: #f44336;">✖ Does not work</span>
 
+- No hit count and no critical hits per spell: the game gives addons one total per spell. ForeverMeter shows casts and average per cast for your own spells instead.
+- The timeline shows your own casts, and those of group members who use ForeverMeter. The game gives no timestamps for damage.
 - When the game hides the threat status too, the window says "unavailable" instead of showing a wrong number.
 - The options panel cannot open during combat: it opens as soon as combat ends.
 

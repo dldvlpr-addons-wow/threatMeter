@@ -109,6 +109,8 @@ local DEFAULTS = {
 	titleColor = { r = 1, g = 0.82, b = 0 },  -- texte du titre (doré de GameFontNormalSmall)
 	barBgColor = { r = 0.15, g = 0.15, b = 0.15 }, -- fond des barres
 	barSpacing = 1,                       -- px entre deux barres
+	headerSpacing = 0,                    -- px entre la barre de titre et la première barre
+	shortNames = false,                   -- prénom seul (« Prénom Nom » ou « Nom-Royaume » -> premier mot)
 	textOutline = false,                  -- contour du texte des barres
 	showIcons = true,                     -- icône de classe ou de sort devant le nom
 	point = { "CENTER", nil, "CENTER", 300, 0 }, -- position de la première fenêtre
@@ -171,7 +173,7 @@ FM.THEMES = {
 		headerColor = { r = 0.25, g = 0.18, b = 0.08 }, barBgColor = { r = 0.1, g = 0.1, b = 0.12 } },
 }
 FM.THEME_KEYS = { "barTexture", "barFont", "fontSize", "rowHeight", "bgAlpha", "bgColor", "borderColor", "borderSize",
-	"headerColor", "titleColor", "barBgColor", "barSpacing", "textOutline", "showIcons" }
+	"headerColor", "titleColor", "barBgColor", "barSpacing", "headerSpacing", "textOutline", "showIcons" }
 -- Valeur d'un thème pour une clé : la sienne, sinon celle de DEFAULTS.
 function FM.ThemeValue(t, k)
 	if t[k] == nil then return DEFAULTS[k] end
@@ -497,8 +499,16 @@ FM.BOUNDS = {
 	bgAlpha = { min = 0, max = 1, step = 0.05 },
 	borderSize = { min = 0, max = 3, step = 1 },  -- au-delà, la bordure passe sous les barres (x = 3)
 	barSpacing = { min = 0, max = 6, step = 1 },
+	headerSpacing = { min = 0, max = 20, step = 1 },
 	windows = { min = 1, max = FM.MAX_WINDOWS, step = 1 },
 }
+
+-- Prénom seul : coupé au premier espace (« Prénom Nom ») ou tiret (« Nom-Royaume »).
+-- Un nom secret (en combat) ne se découpe pas : rendu tel quel.
+function FM.ShortName(name)
+	if issecretvalue(name) or type(name) ~= "string" then return name end
+	return name:match("^[^%s%-]+") or name
+end
 
 -- Valeur ramenée dans ses bornes ; entière quand le pas est entier.
 function FM.Clamp(key, v)
@@ -581,7 +591,8 @@ local SETTINGS_FIELDS = {
 	scale = Bounded("scale"), rows = Bounded("rows"), width = Bounded("width"), refresh = Bounded("refresh"),
 	warnPct = Bounded("warnPct"), fontSize = Bounded("fontSize"), rowHeight = Bounded("rowHeight"), bgAlpha = Bounded("bgAlpha"),
 	warnSound = Boolean, showPets = Boolean, autoHide = Boolean, autoReset = Boolean, instanceOnly = Boolean,
-	borderSize = Bounded("borderSize"), barSpacing = Bounded("barSpacing"), textOutline = Boolean, showIcons = Boolean,
+	borderSize = Bounded("borderSize"), barSpacing = Bounded("barSpacing"), headerSpacing = Bounded("headerSpacing"),
+	textOutline = Boolean, showIcons = Boolean, shortNames = Boolean,
 	bgColor = ValidColor, borderColor = ValidColor, headerColor = ValidColor, titleColor = ValidColor, barBgColor = ValidColor,
 	columns = ValidColumns,
 	locale = function(v) return type(v) == "string" and FM.FindLocale(v) == v, v end,
@@ -711,12 +722,18 @@ end
 -- cfg nil : fenêtre de détail, avec titre.
 local BIG_NUMBER_HEIGHT = 36
 local function HeaderHeight(cfg) return cfg and cfg.noHeader and 0 or 18 end
+-- Haut de la première barre : sous le titre et l'espace réglé (db.headerSpacing), tout en haut sans titre.
+-- Dans FM et non en local : le fichier est au plafond de 200 locales de Lua 5.1.
+function FM.BarsTop(cfg)
+	local h = HeaderHeight(cfg)
+	return h > 0 and h + db.headerSpacing or 0
+end
 -- Réduite : titre seul. Sans titre (noHeader), la réduction est ignorée : la fenêtre deviendrait invisible.
 local function Minimized(cfg) return cfg and cfg.minimized and not cfg.noHeader end
 local function WindowHeight(rows, cfg)
 	if Minimized(cfg) then return HeaderHeight(cfg) end
 	if cfg and cfg.bigNumber then return HeaderHeight(cfg) + BIG_NUMBER_HEIGHT end
-	return HeaderHeight(cfg) + (rows or db.rows) * (db.rowHeight + db.barSpacing) + 3
+	return FM.BarsTop(cfg) + (rows or db.rows) * (db.rowHeight + db.barSpacing) + 3
 end
 
 -- Taille d'une fenêtre : la sienne (poignée de redimensionnement) sinon la taille commune (/fm rows, /fm width).
@@ -1072,7 +1089,7 @@ local function LayoutBars(f, rows, width)
 			text:SetText("")
 		end
 		bar:ClearAllPoints()
-		bar:SetPoint("TOPLEFT", 3, -HeaderHeight(f.cfg) - (i - 1) * (db.rowHeight + db.barSpacing))
+		bar:SetPoint("TOPLEFT", 3, -FM.BarsTop(f.cfg) - (i - 1) * (db.rowHeight + db.barSpacing))
 		if i > rows then bar:Hide() end
 	end
 end
@@ -1109,6 +1126,7 @@ end)
 detail.close = CreateFrame("Button", nil, detail.header, "UIPanelCloseButton")
 detail.close:SetPoint("RIGHT", 2, 0)
 detail.close:SetSize(20, 20)
+detail.title:SetPoint("RIGHT", detail.close, "LEFT", -4, 0)
 detail.close:SetScript("OnClick", function()
 	if detail.owner then detail.owner.selectedGuid, detail.owner.compareGuid = nil, nil end
 	detail:Hide()
@@ -1292,6 +1310,8 @@ local function TestSession()
 	for i, class in ipairs(TEST_CLASSES) do
 		local amount = 100000 - (i - 1) * 9000
 		local name = LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[class] or class
+		-- Un nom complet, pour voir l'effet de l'option « prénom seul ».
+		if i == 2 then name = name .. " Ashford" end
 		-- worldboss : les fausses lignes passent tous les filtres d'ennemis.
 		list[i] = { name = name, classFilename = class, classification = "worldboss", totalAmount = amount, amountPerSecond = amount / 60 }
 		total = total + amount
@@ -1343,7 +1363,9 @@ local function RenderMeter(win)
 			bar:SetValue(src.totalAmount, SMOOTH_FILL)
 			bar:SetStatusBarColor(BarColor(win, src.classFilename))
 			SetSourceIcon(bar, src)
-			bar.left:SetText(string.format("%d. %s", index, src.name))
+			-- Pas en « dégâts subis par les ennemis » : un nom de créature peut contenir un tiret (Mechano-Tank).
+			local short = db.shortNames and mode ~= "enemytaken"
+			bar.left:SetText(string.format("%d. %s", index, short and FM.ShortName(src.name) or src.name))
 			local deathTime = mode == "deaths" and src.deathTimeSeconds
 			if not secret and not issecretvalue(deathTime) and deathTime then
 				-- Morts : nombre, puis instant de la (dernière) mort dans le combat.
@@ -1407,7 +1429,7 @@ local function RenderThreat(win)
 			bar:SetValue(row.pct, SMOOTH_FILL)
 			if row.tanking then bar:SetStatusBarColor(0.9, 0.2, 0.2) else bar:SetStatusBarColor(BarColor(win, row.class)) end
 			SetClassIcon(bar, row.class)
-			bar.left:SetText((row.isPlayer and "> " or "") .. row.name)
+			bar.left:SetText((row.isPlayer and "> " or "") .. (db.shortNames and FM.ShortName(row.name) or row.name))
 			bar.right:SetText(row.status and StatusLabel(row) or string.format("%s  %s/s  %d%%", FM.FormatValue(row.value), FM.FormatValue(row.tps), row.pct))
 			bar.glow:SetShown(row == mine and warn)
 			bar.source, bar.sourceGuid = nil, nil
@@ -1770,35 +1792,37 @@ local function MenuEntries(win)
 				func = function() SelectMode(win, "damage"); win.cfg.columns = { perSecond = true }; Refresh() end }
 		end
 	end
+	-- Réglages par thème en sous-menus : les modes restent au premier niveau, le reste ne descend plus en bas de liste.
 	entries[#entries + 1] = { divider = true }
-	entries[#entries + 1] = { title = L.MENU_SESSION }
-	entries[#entries + 1] = { text = L.SESSION_CURRENT, checked = function() return win.cfg.view == "current" end, func = function() SelectView(win, "current"); Refresh() end }
-	entries[#entries + 1] = { text = L.SESSION_OVERALL, checked = function() return win.cfg.view == "overall" end, func = function() SelectView(win, "overall"); Refresh() end }
+	local sessions = {
+		{ text = L.SESSION_CURRENT, checked = function() return win.cfg.view == "current" end, func = function() SelectView(win, "current"); Refresh() end },
+		{ text = L.SESSION_OVERALL, checked = function() return win.cfg.view == "overall" end, func = function() SelectView(win, "overall"); Refresh() end },
+	}
 	for _, s in ipairs(AvailableSessions()) do
 		local id = s.sessionID
-		entries[#entries + 1] = { text = s.name, checked = function() return win.cfg.view == id end, func = function() SelectView(win, id); Refresh() end }
+		sessions[#sessions + 1] = { text = s.name, checked = function() return win.cfg.view == id end, func = function() SelectView(win, id); Refresh() end }
 	end
-	entries[#entries + 1] = { divider = true }
-	entries[#entries + 1] = { title = L.MENU_WINDOWS }
-	entries[#entries + 1] = { text = L.MENU_LOCK, checkbox = true, checked = function() return win.cfg.locked == true end, func = function() win.cfg.locked = not win.cfg.locked; win.UpdateLock() end }
+	entries[#entries + 1] = { text = L.MENU_SESSION, submenu = sessions }
+	local window = { { text = L.MENU_LOCK, checkbox = true, checked = function() return win.cfg.locked == true end, func = function() win.cfg.locked = not win.cfg.locked; win.UpdateLock() end } }
+	entries[#entries + 1] = { text = L.MENU_WINDOWS, submenu = window }
 	if #db.windows < FM.MAX_WINDOWS then
-		entries[#entries + 1] = { text = L.MENU_NEW_WINDOW, func = function() AddWindow(win) end }
+		window[#window + 1] = { text = L.MENU_NEW_WINDOW, func = function() AddWindow(win) end }
 	end
-	if #db.windows > 1 then entries[#entries + 1] = { text = L.MENU_CLOSE_WINDOW, func = function() CloseWindow(win) end } end
+	if #db.windows > 1 then window[#window + 1] = { text = L.MENU_CLOSE_WINDOW, func = function() CloseWindow(win) end } end
 	-- Affichage de cette fenêtre seule : vrai ou nil (absent de la sauvegarde).
 	-- Sans titre, Réduire n'aurait aucun effet visible (Minimized l'ignore) : la case est retirée.
 	for _, o in ipairs(WINDOW_FLAGS) do if o.key ~= "minimized" or not win.cfg.noHeader then
-		entries[#entries + 1] = { text = L[o.label], checkbox = true, checked = function() return win.cfg[o.key] == true end,
+		window[#window + 1] = { text = L[o.label], checkbox = true, checked = function() return win.cfg[o.key] == true end,
 			func = function()
 				if o.key == "minimized" then ToggleMinimized(win); return end
 				win.cfg[o.key] = not win.cfg[o.key] or nil; Layout(); Refresh()
 			end }
 	end end
-	entries[#entries + 1] = { divider = true }
-	entries[#entries + 1] = { title = L.OPT_COLUMNS }
+	local columns = {}
+	entries[#entries + 1] = { text = L.OPT_COLUMNS, submenu = columns }
 	-- Première case cochée : la fenêtre prend sa propre copie du réglage commun.
 	for _, o in ipairs(COLUMN_CHOICES) do
-		entries[#entries + 1] = { text = L[o.label], checkbox = true, checked = function() return Columns(win)[o.key] == true end,
+		columns[#columns + 1] = { text = L[o.label], checkbox = true, checked = function() return Columns(win)[o.key] == true end,
 			func = function()
 				if not win.cfg.columns then
 					win.cfg.columns = {}
@@ -1809,22 +1833,23 @@ local function MenuEntries(win)
 			end }
 	end
 	if win.cfg.mode == "enemytaken" then
-		entries[#entries + 1] = { divider = true }
-		entries[#entries + 1] = { title = L.MENU_FILTER }
+		local filter = {}
 		for _, o in ipairs(FILTER_CHOICES) do
-			entries[#entries + 1] = { text = L[o.label], checked = function() return win.cfg.filter == o.key end,
+			filter[#filter + 1] = { text = L[o.label], checked = function() return win.cfg.filter == o.key end,
 				func = function() win.cfg.filter = o.key; win.scrollOffset = 0; Refresh() end }
 		end
+		entries[#entries + 1] = { text = L.MENU_FILTER, submenu = filter }
 	end
-	entries[#entries + 1] = { divider = true }
-	entries[#entries + 1] = { title = L.MENU_BAR_COLOR }
-	entries[#entries + 1] = { text = L.MENU_CLASS_COLOR, checked = function() return win.cfg.barColor == nil end,
-		func = function() win.cfg.barColor = nil; Refresh() end }
+	local color = { { text = L.MENU_CLASS_COLOR, checked = function() return win.cfg.barColor == nil end,
+		func = function() win.cfg.barColor = nil; Refresh() end } }
 	if ColorPickerFrame and ColorPickerFrame.SetupColorPickerAndShow then
-		entries[#entries + 1] = { text = L.MENU_PICK_COLOR, checked = function() return win.cfg.barColor ~= nil end,
+		color[2] = { text = L.MENU_PICK_COLOR, checked = function() return win.cfg.barColor ~= nil end,
 			func = function() PickBarColor(win) end }
 	end
+	entries[#entries + 1] = { text = L.MENU_BAR_COLOR, submenu = color }
 	entries[#entries + 1] = { divider = true }
+	-- Tableau de détail (CombatBreakdown.lua), chargé après ce fichier.
+	if NS.Breakdown then entries[#entries + 1] = { text = L.BREAKDOWN_BUTTON, func = function() NS.Breakdown.Open(win) end } end
 	entries[#entries + 1] = { text = L.MENU_COPY, func = function() CopyWindow(win) end }
 	entries[#entries + 1] = { text = L.MENU_OPTIONS, func = function() OpenOptions() end }
 	entries[#entries + 1] = { text = L.MENU_RESET, func = ResetData }
@@ -1835,28 +1860,34 @@ local legacyDropDown = EasyMenu and CreateFrame("Frame", "ForeverMeterDropDown",
 if legacyDropDown then legacyDropDown:Hide() end
 
 -- Affiche des entrées neutres en menu déroulant sous `owner`. Faux si le client n'a aucune API de menu ;
--- sinon vrai et le menu ouvert (MenuUtil seulement, nil possible).
+-- sinon vrai et le menu ouvert (MenuUtil seulement, nil possible). { text, submenu = { ... } } : sous-menu.
 local function ShowEntries(entries, owner)
 	if MenuUtil and MenuUtil.CreateContextMenu then
-		return true, MenuUtil.CreateContextMenu(owner, function(_, root)
+		local function Fill(description, list)
 			-- Longues listes (médias LibSharedMedia) : défilement plutôt qu'un menu plus haut que l'écran.
-			if #entries > 20 and root.SetScrollMode then root:SetScrollMode(400) end
-			for _, e in ipairs(entries) do
-				if e.title then root:CreateTitle(e.title)
-				elseif e.divider then root:CreateDivider()
-				elseif e.checkbox then root:CreateCheckbox(e.text, e.checked, e.func)
-				elseif e.checked then root:CreateRadio(e.text, e.checked, e.func)
-				else root:CreateButton(e.text, e.func) end
+			if #list > 20 and description.SetScrollMode then description:SetScrollMode(400) end
+			for _, e in ipairs(list) do
+				if e.title then description:CreateTitle(e.title)
+				elseif e.divider then description:CreateDivider()
+				elseif e.submenu then Fill(description:CreateButton(e.text), e.submenu)
+				elseif e.checkbox then description:CreateCheckbox(e.text, e.checked, e.func)
+				elseif e.checked then description:CreateRadio(e.text, e.checked, e.func)
+				else description:CreateButton(e.text, e.func) end
 			end
-		end)
-	elseif legacyDropDown then
-		local list = {}
-		for _, e in ipairs(entries) do
-			if e.title then list[#list + 1] = { text = e.title, isTitle = true, notCheckable = true }
-			elseif e.divider then list[#list + 1] = { text = "", disabled = true, notCheckable = true }
-			else list[#list + 1] = { text = e.text, checked = e.checked, func = e.func, notCheckable = e.checked == nil, isNotRadio = e.checkbox, keepShownOnClick = e.checkbox } end
 		end
-		EasyMenu(list, legacyDropDown, owner, 0, 0, "MENU")
+		return true, MenuUtil.CreateContextMenu(owner, function(_, root) Fill(root, entries) end)
+	elseif legacyDropDown then
+		local function Convert(source)
+			local list = {}
+			for _, e in ipairs(source) do
+				if e.title then list[#list + 1] = { text = e.title, isTitle = true, notCheckable = true }
+				elseif e.divider then list[#list + 1] = { text = "", disabled = true, notCheckable = true }
+				elseif e.submenu then list[#list + 1] = { text = e.text, hasArrow = true, notCheckable = true, menuList = Convert(e.submenu) }
+				else list[#list + 1] = { text = e.text, checked = e.checked, func = e.func, notCheckable = e.checked == nil, isNotRadio = e.checkbox, keepShownOnClick = e.checkbox } end
+			end
+			return list
+		end
+		EasyMenu(Convert(entries), legacyDropDown, owner, 0, 0, "MENU")
 	else
 		return false
 	end
@@ -2013,7 +2044,7 @@ local function NewWindow(i)
 	-- glissement ; seuls les événements de drag (ceux du titre) sont fiables.
 	-- Taille (largeur, hauteur en px) -> largeur et lignes de cette fenêtre.
 	local function SizeToConfig(w, h)
-		return FM.Clamp("width", w + 0.5), FM.Clamp("rows", (h - HeaderHeight(f.cfg) - 3) / (db.rowHeight + db.barSpacing) + 0.5)
+		return FM.Clamp("width", w + 0.5), FM.Clamp("rows", (h - FM.BarsTop(f.cfg) - 3) / (db.rowHeight + db.barSpacing) + 0.5)
 	end
 	-- Relâchement : la taille suivie pendant le glissement est arrondie à un nombre entier de lignes.
 	f.OnResized = function()
@@ -2516,10 +2547,17 @@ local function ApplyOption()
 	RefreshOptions()
 end
 
-local function OptionLabel(parent, key, x, y)
-	local fs = parent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+-- section : titre de section, souligné d'un trait sur la largeur de la colonne.
+local function OptionLabel(parent, key, x, y, section)
+	local fs = parent:CreateFontString(nil, "ARTWORK", section and "GameFontHighlightLarge" or "GameFontNormal")
 	fs:SetPoint("TOPLEFT", x, y)
 	refreshers[#refreshers + 1] = function() fs:SetText(L[key]) end
+	if section then
+		local line = parent:CreateTexture(nil, "ARTWORK")
+		line:SetColorTexture(1, 0.82, 0, 0.4)
+		line:SetSize(260, 1)
+		line:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -3)
+	end
 end
 
 -- Libellé + bouton qui ouvre la liste de choix. entries() construit la liste, current() le texte du bouton.
@@ -2578,6 +2616,8 @@ local function OptionCheck(parent, key, x, y, get, set)
 	cb:SetPoint("TOPLEFT", x - 4, y)
 	local text = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 	text:SetPoint("LEFT", cb, "RIGHT", 2, 0)
+	text:SetWidth(240) -- un libellé long passe à la ligne au lieu de déborder sur l'autre colonne
+	text:SetJustifyH("LEFT")
 	cb:SetScript("OnClick", function(self) set(self:GetChecked() and true or false); ApplyOption() end)
 	refreshers[#refreshers + 1] = function() text:SetText(L[key]); cb:SetChecked(get() and true or false) end
 end
@@ -2619,29 +2659,37 @@ do
 	local title = p:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 	title:SetPoint("TOPLEFT", 16, -16)
 	title:SetText("ForeverMeter")
-	local LEFT, RIGHT = 16, 300
+	local LEFT, RIGHT = 16, 330
 
-	OptionChoice(p, "OPT_TEXTURE", LEFT, -56, function() return MediaEntries("statusbar", "barTexture") end, function() return db.barTexture end)
-	OptionChoice(p, "OPT_FONT", LEFT, -106, function() return MediaEntries("font", "barFont") end, function() return db.barFont or L.OPT_DEFAULT end)
-	OptionSlider(p, "OPT_FONT_SIZE", LEFT, -160, "fontSize", function() return db.fontSize or 10 end, function(v) db.fontSize = v end)
-	OptionChoice(p, "OPT_LANG", LEFT, -226, LanguageEntries, function() return db.locale or ("auto (" .. GetLocale() .. ")") end)
+	-- Page principale : comportement. L'aspect visuel est sur la sous-page Habillage.
+	OptionLabel(p, "OPT_SECTION_GENERAL", LEFT, -50, true)
+	OptionChoice(p, "OPT_LANG", LEFT, -78, LanguageEntries, function() return db.locale or ("auto (" .. GetLocale() .. ")") end)
+	OptionSlider(p, "OPT_SCALE", LEFT, -128, "scale", function() return db.scale end, function(v) db.scale = v end)
+	OptionSlider(p, "OPT_REFRESH", LEFT, -186, "refresh", function() return db.refresh end, function(v) db.refresh = v end)
 
-	-- Au-dessus du curseur d'échelle, à hauteur du titre : seule place libre du panneau.
-	PaintThemeButton = OptionChoice(p, "OPT_THEME", RIGHT, -12, ThemeEntries, function() return CurrentTheme() or L.OPT_THEME_CUSTOM end)
-	OptionSlider(p, "OPT_SCALE", RIGHT, -56, "scale", function() return db.scale end, function(v) db.scale = v end)
-	OptionSlider(p, "OPT_REFRESH", RIGHT, -116, "refresh", function() return db.refresh end, function(v) db.refresh = v end)
-	OptionSlider(p, "OPT_WARN", RIGHT, -176, "warnPct", function() return db.warnPct end, function(v) db.warnPct = v end)
-	OptionLabel(p, "OPT_COLUMNS", RIGHT, -236)
-	OptionCheck(p, "OPT_COL_TOTAL", RIGHT, -256, function() return db.columns.total end, function(v) db.columns.total = v end)
-	OptionCheck(p, "OPT_COL_PER_SECOND", RIGHT, -286, function() return db.columns.perSecond end, function(v) db.columns.perSecond = v end)
-	OptionCheck(p, "OPT_COL_PERCENT", RIGHT, -316, function() return db.columns.percent end, function(v) db.columns.percent = v end)
-	OptionSlider(p, "OPT_ROW_HEIGHT", RIGHT, -456, "rowHeight", function() return db.rowHeight end, function(v) db.rowHeight = v end)
-	OptionSlider(p, "OPT_BG_ALPHA", RIGHT, -512, "bgAlpha", function() return db.bgAlpha end, function(v) db.bgAlpha = v end)
-	OptionCheck(p, "OPT_INSTANCE_ONLY", RIGHT, -346, function() return db.instanceOnly end, SetInstanceOnly)
+	OptionLabel(p, "OPT_SECTION_THREAT", LEFT, -258, true)
+	OptionSlider(p, "OPT_WARN", LEFT, -286, "warnPct", function() return db.warnPct end, function(v) db.warnPct = v end)
+	OptionCheck(p, "OPT_SOUND", LEFT, -342, function() return db.warnSound end, function(v) db.warnSound = v end)
+	OptionCheck(p, "OPT_PETS", LEFT, -372, function() return db.showPets end, function(v) db.showPets = v end)
+
+	OptionLabel(p, "OPT_COLUMNS", LEFT, -420, true)
+	OptionCheck(p, "OPT_COL_TOTAL", LEFT, -446, function() return db.columns.total end, function(v) db.columns.total = v end)
+	OptionCheck(p, "OPT_COL_PER_SECOND", LEFT, -476, function() return db.columns.perSecond end, function(v) db.columns.perSecond = v end)
+	OptionCheck(p, "OPT_COL_PERCENT", LEFT, -506, function() return db.columns.percent end, function(v) db.columns.percent = v end)
+
 	-- Mêmes chemins que /fm windows, /fm rows et /fm width.
-	OptionSlider(p, "OPT_WINDOWS", RIGHT, -400, "windows", function() return #db.windows end, SetWindowCount)
-	OptionSlider(p, "OPT_ROWS", LEFT, -446, "rows", function() return db.rows end, function(v) SetCommonSize("rows", v) end)
-	OptionSlider(p, "OPT_WIDTH", LEFT, -506, "width", function() return db.width end, function(v) SetCommonSize("width", v) end)
+	OptionLabel(p, "OPT_SECTION_WINDOWS", RIGHT, -50, true)
+	OptionSlider(p, "OPT_WINDOWS", RIGHT, -78, "windows", function() return #db.windows end, SetWindowCount)
+	OptionSlider(p, "OPT_ROWS", RIGHT, -136, "rows", function() return db.rows end, function(v) SetCommonSize("rows", v) end)
+	OptionSlider(p, "OPT_WIDTH", RIGHT, -194, "width", function() return db.width end, function(v) SetCommonSize("width", v) end)
+	OptionCheck(p, "OPT_LOCK", RIGHT, -250, function() return windows[1] and windows[1].cfg.locked end, function(v)
+		for i = 1, #db.windows do windows[i].cfg.locked = v or nil; windows[i].UpdateLock() end
+	end)
+
+	OptionLabel(p, "OPT_SECTION_VISIBILITY", RIGHT, -298, true)
+	OptionCheck(p, "OPT_AUTO_HIDE", RIGHT, -324, function() return db.autoHide end, SetAutoHide)
+	OptionCheck(p, "OPT_INSTANCE_ONLY", RIGHT, -354, function() return db.instanceOnly end, SetInstanceOnly)
+	OptionCheck(p, "OPT_AUTO_RESET", RIGHT, -384, function() return db.autoReset end, function(v) db.autoReset = v end)
 
 	-- Rangée de boutons du bas : le cadre des réglages (Blizzard_SettingsPanel.xml) offre environ 600 px de haut.
 	local function PanelButton(key, x, y, onClick)
@@ -2656,14 +2704,6 @@ do
 	PanelButton("OPT_EXPORT", LEFT + 210, -566, ExportSettings)
 	PanelButton("OPT_IMPORT", LEFT + 420, -566, OpenImport)
 
-	OptionCheck(p, "OPT_SOUND", LEFT, -286, function() return db.warnSound end, function(v) db.warnSound = v end)
-	OptionCheck(p, "OPT_PETS", LEFT, -316, function() return db.showPets end, function(v) db.showPets = v end)
-	OptionCheck(p, "OPT_LOCK", LEFT, -346, function() return windows[1] and windows[1].cfg.locked end, function(v)
-		for i = 1, #db.windows do windows[i].cfg.locked = v or nil; windows[i].UpdateLock() end
-	end)
-	OptionCheck(p, "OPT_AUTO_HIDE", LEFT, -376, function() return db.autoHide end, SetAutoHide)
-	OptionCheck(p, "OPT_AUTO_RESET", LEFT, -406, function() return db.autoReset end, function(v) db.autoReset = v end)
-
 	optionsPanel = p
 	if Settings and Settings.RegisterCanvasLayoutCategory then
 		optionsCategory = Settings.RegisterCanvasLayoutCategory(p, p.name)
@@ -2673,9 +2713,9 @@ do
 	end
 end
 
--- Bloc à part : deux locales actives au plus, le fichier frôle le plafond de 200 locales de Lua 5.1.
+-- Bloc à part : peu de locales actives, le fichier frôle le plafond de 200 locales de Lua 5.1.
 do
-	-- Sous-page Habillage : couleurs, bordure, espacement, texte. Un réglage changé ici fait passer le thème à « Custom ».
+	-- Sous-page Habillage : tout l'aspect visuel. Un réglage changé ici fait passer le thème à « Custom ».
 	-- Nom de la sous-page fixé à l'enregistrement : langue du client, pas celle choisie ensuite.
 	local skin = CreateFrame("Frame")
 	skin.name, skin.parent = L.OPT_SKIN, "ForeverMeter"
@@ -2684,12 +2724,15 @@ do
 	skin.title = skin:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 	skin.title:SetPoint("TOPLEFT", 16, -16)
 	refreshers[#refreshers + 1] = function() skin.title:SetText(L.OPT_SKIN) end
-	-- Libellé + carré de couleur ; clic : sélecteur du client, Annuler remet la couleur d'avant.
+	local LEFT, RIGHT = 16, 330
+	-- Carré de couleur suivi de son libellé ; clic : sélecteur du client, Annuler remet la couleur d'avant.
 	local function OptionColor(key, y, field)
-		OptionLabel(skin, key, 16, y)
 		local b = CreateFrame("Button", nil, skin, "BackdropTemplate")
-		b:SetSize(40, 18)
-		b:SetPoint("TOPLEFT", 16, y - 18)
+		b:SetSize(32, 16)
+		b:SetPoint("TOPLEFT", RIGHT, y)
+		local text = skin:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+		text:SetPoint("LEFT", b, "RIGHT", 8, 0)
+		refreshers[#refreshers + 1] = function() text:SetText(L[key]) end
 		b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
 		b:SetBackdropBorderColor(1, 1, 1, 1)
 		local function Set(c) db[field] = c; ApplyOption() end
@@ -2704,15 +2747,29 @@ do
 		end)
 		refreshers[#refreshers + 1] = function() local c = db[field]; b:SetBackdropColor(c.r, c.g, c.b, 1) end
 	end
-	OptionColor("OPT_BG_COLOR", -56, "bgColor")
+
+	OptionLabel(skin, "OPT_SECTION_APPEARANCE", LEFT, -50, true)
+	PaintThemeButton = OptionChoice(skin, "OPT_THEME", LEFT, -78, ThemeEntries, function() return CurrentTheme() or L.OPT_THEME_CUSTOM end)
+	OptionChoice(skin, "OPT_TEXTURE", LEFT, -128, function() return MediaEntries("statusbar", "barTexture") end, function() return db.barTexture end)
+	OptionChoice(skin, "OPT_FONT", LEFT, -178, function() return MediaEntries("font", "barFont") end, function() return db.barFont or L.OPT_DEFAULT end)
+	OptionSlider(skin, "OPT_FONT_SIZE", LEFT, -230, "fontSize", function() return db.fontSize or 10 end, function(v) db.fontSize = v end)
+	OptionSlider(skin, "OPT_ROW_HEIGHT", LEFT, -288, "rowHeight", function() return db.rowHeight end, function(v) db.rowHeight = v end)
+	OptionSlider(skin, "OPT_BG_ALPHA", LEFT, -346, "bgAlpha", function() return db.bgAlpha end, function(v) db.bgAlpha = v end)
+	OptionCheck(skin, "OPT_TEXT_OUTLINE", LEFT, -404, function() return db.textOutline end, function(v) db.textOutline = v end)
+	OptionCheck(skin, "OPT_SHOW_ICONS", LEFT, -434, function() return db.showIcons end, function(v) db.showIcons = v end)
+	OptionCheck(skin, "OPT_SHORT_NAMES", LEFT, -464, function() return db.shortNames end, function(v) db.shortNames = v end)
+
+	OptionLabel(skin, "OPT_SECTION_COLORS", RIGHT, -50, true)
+	OptionColor("OPT_BG_COLOR", -80, "bgColor")
 	OptionColor("OPT_BORDER_COLOR", -106, "borderColor")
-	OptionColor("OPT_HEADER_COLOR", -156, "headerColor")
-	OptionColor("OPT_TITLE_COLOR", -206, "titleColor")
-	OptionColor("OPT_BAR_BG_COLOR", -256, "barBgColor")
-	OptionSlider(skin, "OPT_BORDER_SIZE", 300, -56, "borderSize", function() return db.borderSize end, function(v) db.borderSize = v end)
-	OptionSlider(skin, "OPT_BAR_SPACING", 300, -116, "barSpacing", function() return db.barSpacing end, function(v) db.barSpacing = v end)
-	OptionCheck(skin, "OPT_TEXT_OUTLINE", 300, -176, function() return db.textOutline end, function(v) db.textOutline = v end)
-	OptionCheck(skin, "OPT_SHOW_ICONS", 300, -206, function() return db.showIcons end, function(v) db.showIcons = v end)
+	OptionColor("OPT_HEADER_COLOR", -132, "headerColor")
+	OptionColor("OPT_TITLE_COLOR", -158, "titleColor")
+	OptionColor("OPT_BAR_BG_COLOR", -184, "barBgColor")
+
+	OptionLabel(skin, "OPT_SECTION_SPACING", RIGHT, -226, true)
+	OptionSlider(skin, "OPT_BORDER_SIZE", RIGHT, -254, "borderSize", function() return db.borderSize end, function(v) db.borderSize = v end)
+	OptionSlider(skin, "OPT_BAR_SPACING", RIGHT, -312, "barSpacing", function() return db.barSpacing end, function(v) db.barSpacing = v end)
+	OptionSlider(skin, "OPT_HEADER_SPACING", RIGHT, -370, "headerSpacing", function() return db.headerSpacing end, function(v) db.headerSpacing = v end)
 	if optionsCategory and Settings.RegisterCanvasLayoutSubcategory then
 		Settings.RegisterCanvasLayoutSubcategory(optionsCategory, skin, skin.name)
 	elseif InterfaceOptions_AddCategory then
