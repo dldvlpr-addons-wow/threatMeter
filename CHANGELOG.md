@@ -1,5 +1,19 @@
 # ForeverMeter
 
+## 1.18.2
+
+### Changed
+- **Window menu**: **New window** is now the first entry. Settings are grouped in submenus:
+  **Session**, **Windows** (lock, close, my bar only, no title bar, big number, minimize), **Bar text**,
+  **Bar colour**, and **Enemies shown** in enemy damage taken. Display modes stay at the top level.
+- **Options panel**: the main page holds behaviour in sections (General, Threat, Bar text, Windows, Visibility).
+  The look moves to the **Appearance** page: theme, texture, font and size, bar height and opacity join the colours and spacing.
+
+### New
+- **First name only** (Appearance page): shows only the first word of player names ("Name-Realm" becomes "Name").
+  Enemy damage taken keeps full names.
+- **Space below the title bar** (Appearance page): gap between the title bar and the first bar, 0 to 20 px.
+
 ## 1.18.1
 
 ### Changed

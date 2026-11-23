@@ -597,6 +597,7 @@ local function Entry(text) for _, e in ipairs(LAST_MENU) do if e[2] == text then
 -- CreateButton(text, func) : func en position 3 ; radio/checkbox : en position 4.
 local function Call(text) local e = assert(Entry(text), text); return (e[1] == "CreateButton" and e[3] or e[4])() end
 assert(Entry("Dégâts")[3]() == true and Entry("Ogre") and Entry("Verrouiller la position")[1] == "CreateCheckbox")
+assert(LAST_MENU[1][2] == "Nouvelle fenêtre" and Entry("Nouvelle fenêtre").parent == nil, "Nouvelle fenêtre en tête du menu")
 assert(Entry("Dégâts").parent == nil and Entry("Verrouiller la position").parent == "Fenêtres" and Entry("Global").parent == "Session" and Entry("Couleur de classe").parent == "Couleur des barres", "sous-menus")
 ForeverMeterBreakdownFrame:Hide(); Call("Tableau"); assert(ForeverMeterBreakdownFrame.shown, "menu : tableau ouvert"); ForeverMeterBreakdownFrame:Hide()
 assert(Entry("Verrouiller la position")[3]() == false); Entry("Verrouiller la position")[4](); assert(db.windows[1].locked == true and not db.windows[2].locked, "verrou par fenêtre")

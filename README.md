@@ -47,7 +47,7 @@ Install from CurseForge or Wago, or copy the folder into
 - Modes: damage, healing, absorbs, damage taken, enemy damage taken, avoidable damage taken, interrupts, dispels, deaths, threat.
   Enemy and avoidable damage taken appear only when the client knows these meter types.
 - Up to 4 windows, each with its own mode, session and position (damage and healing side by side, for example).
-  Menu → **New window** / **Close this window**, or `/fm windows 2`.
+  Menu → **New window** (first entry) / Windows → **Close this window**, or `/fm windows 2`.
 - New window: same size and lock state as the window it comes from, attached to the first free side
   (below, right, above, left) without going off screen or covering another window.
 - Snapping: dropping a window against the edge of another snaps it (it then follows that window's moves
@@ -55,10 +55,11 @@ Install from CurseForge or Wago, or copy the folder into
 - Size: grips in the bottom-right and bottom-left corners of each window (width and number of rows, per window).
   `/fm rows` and `/fm width` set a shared size and clear per-window sizes.
 - Your own bar: when you rank below the visible rows, it takes the last row with your real rank (windows of 2 rows or more).
-- Per window, from its menu: bar text (total, per second, percent), **My bar only**, **No title bar**, **Big number**, **Minimize**.
+- Per window, from its menu: Bar text (total, per second, percent), and in Windows: **My bar only**, **No title bar**, **Big number**, **Minimize**.
   Menu → Display → **DPS**: damage with the per second value only.
 - Sessions: current fight, overall, or any fight kept by the client.
-- **Menu** button (or right-click on the title): mode, session, lock, windows, copy as text. **Reset** button: clears data.
+- **Menu** button (or right-click on the title): new window, modes, then submenus Session, Windows, Bar text,
+  Bar colour (and Enemies shown in enemy damage taken); table, copy as text, options, reset. **Reset** button: clears data.
 - Padlock in the title bar: locks position and size of that window only (`/fm lock` / `unlock`: all windows).
 - Gear in the title bar: opens the options.
 - Hover a bar: top 5 spells of that source. Click: per-spell breakdown (icon, total, per second). Mouse wheel: scroll; over the title: change mode.
@@ -72,9 +73,10 @@ Install from CurseForge or Wago, or copy the folder into
 - Refresh every 0.2 s by default, on top of meter events (`/fm refresh 0.1` for snappier updates).
 - Button in the addon compartment (next to the minimap) to show or hide the windows.
 - Options panel (Options → AddOns → ForeverMeter, `/fm options`, **Options** in a window menu, or the gear in the title bar):
-  theme, texture, font, font size, language, scale, refresh, threat warning, sound, pets, lock, auto show, reset,
-  bar text columns (total, per second, percent), bar height, background opacity, number of windows,
-  shared rows and width, settings export and import.
+  language, scale, refresh, threat warning, sound, pets, bar text columns (total, per second, percent),
+  number of windows, shared rows and width, lock, auto show, hide outside instances, auto reset, settings export and import.
+  **Appearance** page: theme, texture, font, font size, bar height, background opacity, outlined text, icons,
+  first name only, colours, border size, bar spacing, space below the title bar.
 - Settings export and import (`/fm export`, `/fm import`): copy your settings as text to another PC or player.
 - Bar textures (`blizzard`, `flat`, `gradient`, `glass`, `striped`, `fade`) and fonts (six bundled OFL fonts plus
   the game fonts). Textures and fonts from LibSharedMedia are listed too when another addon loads it.

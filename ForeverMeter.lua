@@ -1783,7 +1783,12 @@ local COLUMN_CHOICES = {
 }
 
 local function MenuEntries(win)
-	local entries = { { title = L.MENU_DISPLAY } }
+	local entries = {}
+	-- Nouvelle fenêtre en tête : action la plus cherchée, hors sous-menu.
+	if #db.windows < FM.MAX_WINDOWS then
+		entries[1] = { text = L.MENU_NEW_WINDOW, func = function() AddWindow(win) end }
+	end
+	entries[#entries + 1] = { title = L.MENU_DISPLAY }
 	for _, m in ipairs(FM.MODES) do
 		entries[#entries + 1] = { text = FM.MODE_INFO[m].label, checked = function() return win.cfg.mode == m and not IsDps(win) end,
 			func = function() SelectMode(win, m); Refresh() end }
@@ -1805,9 +1810,6 @@ local function MenuEntries(win)
 	entries[#entries + 1] = { text = L.MENU_SESSION, submenu = sessions }
 	local window = { { text = L.MENU_LOCK, checkbox = true, checked = function() return win.cfg.locked == true end, func = function() win.cfg.locked = not win.cfg.locked; win.UpdateLock() end } }
 	entries[#entries + 1] = { text = L.MENU_WINDOWS, submenu = window }
-	if #db.windows < FM.MAX_WINDOWS then
-		window[#window + 1] = { text = L.MENU_NEW_WINDOW, func = function() AddWindow(win) end }
-	end
 	if #db.windows > 1 then window[#window + 1] = { text = L.MENU_CLOSE_WINDOW, func = function() CloseWindow(win) end } end
 	-- Affichage de cette fenêtre seule : vrai ou nil (absent de la sauvegarde).
 	-- Sans titre, Réduire n'aurait aucun effet visible (Minimized l'ignore) : la case est retirée.

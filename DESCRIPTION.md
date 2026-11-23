@@ -30,7 +30,7 @@ Choose **Table** in a window's menu (Menu button or right-click on the title). A
 
 ### <span style="color: #0cf;">Appearance</span>
 
-- <span style="color: #ffd100;"><strong>Appearance page</strong></span> under Options → AddOns → ForeverMeter: theme, bar texture, font and size, bar height, opacity, background, border, title bar and bar colours, border size, bar spacing, outlined text, class and spell icons on or off. The detail window and the table follow the same look.
+- <span style="color: #ffd100;"><strong>Appearance page</strong></span> under Options → AddOns → ForeverMeter: theme, bar texture, font and size, bar height, opacity, background, border, title bar and bar colours, border size, bar spacing, space below the title bar, outlined text, class and spell icons on or off, first name only. The detail window and the table follow the same look.
 - <span style="color: #ffd100;"><strong>Four new themes:</strong></span> `dark`, `clear`, `bold` and `ui`, on top of `classic`, `flat`, `glass` and `compact`.
 
 ### <span style="color: #0cf;">Earlier</span>
